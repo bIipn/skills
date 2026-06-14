@@ -51,11 +51,20 @@
       <table>
         <thead><tr>
           <th>KIND</th><th>MARKET</th><th>COST</th><th>FLOOR</th>
-          <th>PROFIT</th><th>EDGE</th><th>CONF</th>
+          <th>PROFIT</th><th>EDGE</th><th>BREGMAN</th><th>FW</th><th>CONF</th>
         </tr></thead>
         <tbody id="opps"></tbody>
       </table>
     </div>
+  </section>
+
+  <!-- Backtest -->
+  <section class="card wide">
+    <div class="card-head">
+      BACKTEST HARNESS
+      <button id="bt-run" class="btn">▶ RUN 500-TICK BACKTEST</button>
+    </div>
+    <div id="backtest" class="muted">Run a deterministic replay to evaluate the strategy.</div>
   </section>
 
   <!-- Trade feed -->

@@ -53,6 +53,12 @@ td{padding:8px 10px;border-top:1px solid var(--line);font-size:12px}
 .strat-cell{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px}
 .strat-pnl{font-size:24px;font-weight:700;margin:8px 0 2px}
 .small{font-size:10px;margin-top:6px}
+.btn{float:right;background:var(--green-dim);color:#fff;border:none;border-radius:6px;
+  padding:5px 12px;font-size:11px;letter-spacing:.5px;cursor:pointer;font-family:inherit}
+.btn:hover{background:var(--green);color:#04130b}
+.btn:disabled{opacity:.5;cursor:wait}
+.big-inline{font-size:20px;font-weight:700}
+#backtest{line-height:1.7}
 @media(max-width:700px){.strat-grid{grid-template-columns:1fr}}
 .flash{animation:flash .8s ease}
 @keyframes flash{from{background:#15351f}to{background:transparent}}

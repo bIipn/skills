@@ -28,8 +28,10 @@ sizes the optimal trade, and simulates execution — all visualised on a live
 | Dependency AI | `backend/dependencies.py` | Classifies logically dependent market pairs into feasible joint outcomes — offline `HeuristicClassifier`, or `ClaudeClassifier` (claude-opus-4-8) when `ANTHROPIC_API_KEY` is set |
 | Optimization | `backend/optimizer.py` | Bregman projection onto the arbitrage-free manifold via **Frank-Wolfe** (conditional gradient) — grows an active set one vertex at a time instead of enumerating 2ⁿ outcomes |
 | Sizing | `backend/kelly.py` | Depth caps (≤50% of book) + fractional Kelly for the risk-adjusted component |
-| Execution | `backend/execution.py` | `PaperExecutor` models sequential CLOB fills *with* adverse slippage; guarded `LiveExecutor` stub |
-| Orchestration | `backend/engine.py` | The scan → detect → size → execute → track loop + PnL state |
+| Execution | `backend/execution.py` | `PaperExecutor` models sequential CLOB fills *with* adverse slippage; gated `LiveExecutor` places real GTC orders via `py-clob-client` |
+| Persistence | `backend/storage.py` | SQLite trade log; realized PnL + trade history survive restarts |
+| Backtest | `backend/backtest.py` | Deterministic replay through the full pipeline → equity curve + stats (return, win rate, max drawdown, per-strategy) |
+| Orchestration | `backend/engine.py` | The scan → detect → size → execute → persist → track loop + PnL state |
 | API + UI | `backend/main.py`, `frontend/` | FastAPI REST/WebSocket server and a zero-dependency dashboard |
 
 ### The three arbitrage strategies
@@ -79,10 +81,20 @@ pip install -r requirements.txt
 # 1) headless: run one scan and print opportunities
 python run.py --scan
 
-# 2) full dashboard + engine
+# 2) deterministic backtest (no network, no credentials)
+python run.py --backtest --ticks 500
+#   Bankroll:   $10,000.00 -> $25,360.53   (+153.61%)
+#   Trades: 750  (win rate 88.4%)  max drawdown 0.24%
+
+# 3) full dashboard + engine (with a "Run Backtest" button)
 python run.py
 # open http://localhost:8000
 ```
+
+The dashboard's opportunity table shows each trade's **Bregman divergence**
+(max extractable profit/unit) and **Frank-Wolfe iteration count** — the
+3-layer optimizer's telemetry, live. Executed trades persist to
+`arb_trades.db` (SQLite); restart and your PnL/history are restored.
 
 Run the tests:
 
@@ -99,11 +111,11 @@ Two independent switches in `.env` (copy from `.env.example`):
 - `PM_DATA_MODE=live` — pulls **real** Polymarket markets and order books
   (read-only, safe).
 - `PM_EXECUTION_MODE=live` **plus** `PM_API_KEY` and `PM_WALLET_PRIVATE_KEY`
-  — enables the live executor. Even then, actual order submission raises
-  `NotImplementedError` until *you* wire up
-  [`py-clob-client`](https://github.com/Polymarket/py-clob-client) in
-  `backend/execution.py`. This is intentional: nothing places a real order by
-  accident.
+  — enables `LiveExecutor`, which submits real GTC limit orders through
+  [`py-clob-client`](https://github.com/Polymarket/py-clob-client)
+  (`pip install py-clob-client`). With anything missing it refuses to place
+  orders and returns a no-op result. This switch is intentionally hard to
+  flip: nothing trades real funds by accident.
 
 To paper-trade against **real live prices** (the recommended way to evaluate
 the strategy), set `PM_DATA_MODE=live` and leave `PM_EXECUTION_MODE=paper`.
@@ -124,12 +136,17 @@ the strategy), set `PM_DATA_MODE=live` and leave `PM_EXECUTION_MODE=paper`.
                                    └─────────────┬─────────────┘
                                                  │ sized legs
                                    ┌─────────────▼─────────────┐
-                                   │ Executor (paper|live)     │
+                                   │ Executor (paper|live CLOB)│
                                    └─────────────┬─────────────┘
                                                  │ fills / PnL
                        ┌─────────────────────────▼──────────────┐
-                       │ Engine state → FastAPI WS → Dashboard   │
+                       │ Engine ──► SQLite trade log (restart-   │
+                       │   state     safe PnL + history)         │
+                       │    │                                    │
+                       │    └──► FastAPI WS ──► Dashboard         │
                        └─────────────────────────────────────────┘
+
+         backtest.py replays the same pipeline offline → equity curve + stats
 ```
 
 ---

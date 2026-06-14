@@ -24,10 +24,27 @@ import numpy as np
 from .config import settings
 from .kelly import depth_capped_size
 from .models import Leg, Market, Opportunity
+from .optimizer import frank_wolfe_projection
 
 
 def _fee(notional: float) -> float:
     return notional * settings.taker_fee_bps / 10_000.0
+
+
+def _enrich(opp: Opportunity, prices: np.ndarray, vertices: np.ndarray) -> Opportunity:
+    """Attach Bregman/Frank-Wolfe telemetry to a detected opportunity.
+
+    Projects the live price vector onto the arbitrage-free hull; the Bregman
+    divergence is the max per-unit extractable profit, and the iteration count
+    shows the conditional-gradient cost.
+    """
+    try:
+        res = frank_wolfe_projection(prices, vertices)
+        opp.bregman = res.divergence
+        opp.fw_iters = res.iterations
+    except Exception:
+        pass
+    return opp
 
 
 def detect_single_condition(market: Market) -> Optional[Opportunity]:
@@ -65,7 +82,7 @@ def detect_single_condition(market: Market) -> Optional[Opportunity]:
         Leg(yes.token_id, yes.label, "BUY", yes.best_ask, size),
         Leg(no.token_id, no.label, "BUY", no.best_ask, size),
     ]
-    return Opportunity(
+    opp = Opportunity(
         kind="single_condition",
         market_id=market.condition_id,
         description=f"{market.question[:60]} — YES+NO = ${combined:.3f} < $1.00",
@@ -76,6 +93,7 @@ def detect_single_condition(market: Market) -> Optional[Opportunity]:
         edge_pct=profit / (cost + fees) if cost else 0.0,
         confidence=1.0,
     )
+    return _enrich(opp, np.array([yes.best_ask, no.best_ask]), np.eye(2))
 
 
 def detect_rebalance(market: Market) -> Optional[Opportunity]:
@@ -110,7 +128,7 @@ def detect_rebalance(market: Market) -> Optional[Opportunity]:
     legs = [
         Leg(o.token_id, o.label, "BUY", o.best_ask, size) for o in market.outcomes
     ]
-    return Opportunity(
+    opp = Opportunity(
         kind="rebalance",
         market_id=market.condition_id,
         description=(
@@ -124,6 +142,8 @@ def detect_rebalance(market: Market) -> Optional[Opportunity]:
         edge_pct=profit / (cost + fees) if cost else 0.0,
         confidence=1.0,
     )
+    n = len(market.outcomes)
+    return _enrich(opp, np.array(asks), np.eye(n))
 
 
 def detect_combinatorial(
@@ -202,7 +222,7 @@ def detect_combinatorial(
     if not legs:
         return None
 
-    return Opportunity(
+    opp = Opportunity(
         kind="combinatorial",
         market_id="+".join(m.condition_id for m in markets)[:64],
         description=(
@@ -216,6 +236,7 @@ def detect_combinatorial(
         edge_pct=profit / (cost + fees) if cost else 0.0,
         confidence=0.81,  # combinatorial deps are AI-classified; see paper (81.45%)
     )
+    return _enrich(opp, ask.copy(), feasible_outcomes.astype(float))
 
 
 def scan_markets(markets: list[Market]) -> list[Opportunity]:

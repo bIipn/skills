@@ -90,6 +90,9 @@ class Opportunity:
     edge_pct: float           # profit / cost
     confidence: float = 1.0   # 1.0 for proven arb, <1 for AI-detected deps
     detected_at: float = field(default_factory=time.time)
+    # 3-layer optimizer telemetry (filled by the Bregman/Frank-Wolfe layer).
+    bregman: float = 0.0      # Bregman divergence == max per-unit extractable profit
+    fw_iters: int = 0         # Frank-Wolfe iterations to converge
 
     def to_dict(self) -> dict:
         return {
@@ -102,6 +105,8 @@ class Opportunity:
             "profit": round(self.profit, 4),
             "edge_pct": round(self.edge_pct * 100, 2),
             "confidence": round(self.confidence, 3),
+            "bregman": round(self.bregman, 4),
+            "fw_iters": self.fw_iters,
             "detected_at": self.detected_at,
         }
 

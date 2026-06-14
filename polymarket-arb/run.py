@@ -12,9 +12,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--scan", action="store_true",
                     help="Run a single detection scan and print results.")
+    ap.add_argument("--backtest", action="store_true",
+                    help="Run a deterministic backtest and print a report.")
+    ap.add_argument("--ticks", type=int, default=200,
+                    help="Number of ticks for --backtest.")
+    ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--host", default="127.0.0.1")
     args = ap.parse_args()
+
+    if args.backtest:
+        from backend.backtest import run_backtest
+        report = run_backtest(ticks=args.ticks, seed=args.seed)
+        print(report.pretty())
+        return
 
     if args.scan:
         from backend.engine import engine

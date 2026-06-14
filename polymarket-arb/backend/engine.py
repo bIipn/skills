@@ -22,6 +22,7 @@ from .dependencies import make_classifier, scan_combinatorial
 from .execution import make_executor
 from .models import Market, Opportunity, TradeResult
 from .polymarket_client import make_feed
+from .storage import make_store
 
 
 @dataclass
@@ -59,14 +60,28 @@ class ArbEngine:
         self.feed = make_feed()
         self.executor = make_executor()
         self.classifier = make_classifier()
+        self.store = make_store()
         self.state = EngineState(
             bankroll=settings.starting_bankroll,
             starting_bankroll=settings.starting_bankroll,
         )
+        self._restore_from_store()
         self.state.equity_curve.append(
-            {"t": time.time(), "equity": settings.starting_bankroll}
+            {"t": time.time(), "equity": round(self.state.bankroll, 2)}
         )
         self._running = False
+
+    def _restore_from_store(self) -> None:
+        """Rehydrate realized PnL and the trade log from persisted history."""
+        agg = self.store.aggregates()
+        self.state.trades_total = agg["trades_total"]
+        self.state.trades_won = agg["trades_won"]
+        self.state.realized_pnl = agg["realized_pnl"]
+        self.state.bankroll = self.state.starting_bankroll + agg["realized_pnl"]
+        for kind, v in agg["by_strategy"].items():
+            self.state.by_strategy[kind] = dict(v)
+        for d in reversed(self.store.recent(50)):
+            self.state.recent_trades.appendleft(d)
 
     async def tick(self) -> list[TradeResult]:
         t0 = time.perf_counter()
@@ -98,6 +113,7 @@ class ArbEngine:
             bucket["pnl"] += res.realized_profit
             bucket["trades"] += 1
             self.state.recent_trades.appendleft(res.to_dict())
+            self.store.record(res)
 
         self.state.equity_curve.append(
             {"t": time.time(), "equity": round(self.state.bankroll, 2)}

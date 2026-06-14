@@ -43,6 +43,14 @@ async def get_state():
     return JSONResponse(engine.snapshot())
 
 
+@app.get("/api/backtest")
+async def run_backtest_endpoint(ticks: int = 200, seed: int = 42):
+    # Run the (CPU-bound, deterministic) backtest off the event loop.
+    from .backtest import run_backtest
+    report = await asyncio.to_thread(run_backtest, min(ticks, 2000), seed)
+    return JSONResponse(report.to_dict())
+
+
 @app.get("/api/config")
 async def get_config():
     return JSONResponse({

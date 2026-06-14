@@ -62,8 +62,10 @@ function renderOpps(opps) {
       <td>${fmt(o.guaranteed_payoff)}</td>
       <td class="pos">+${fmt(o.profit)}</td>
       <td class="pos">${o.edge_pct}%</td>
+      <td title="Bregman divergence = max extractable profit/unit">${o.bregman}</td>
+      <td title="Frank-Wolfe iterations to converge">${o.fw_iters}</td>
       <td>${(o.confidence * 100).toFixed(0)}%</td>
-    </tr>`).join("") || `<tr><td colspan="7" class="muted">scanning…</td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="9" class="muted">scanning…</td></tr>`;
 }
 
 function renderTrades(trades) {
@@ -143,6 +145,31 @@ function pollFallback() {
   pollTimer = setInterval(async () => {
     try { render(await (await fetch("/api/state")).json()); } catch (_) {}
   }, 2500);
+}
+
+// Backtest runner
+const btBtn = $("bt-run");
+if (btBtn) {
+  btBtn.addEventListener("click", async () => {
+    btBtn.disabled = true;
+    $("backtest").textContent = "Running backtest…";
+    try {
+      const r = await fetch("/api/backtest?ticks=500");
+      const b = await r.json();
+      const strat = Object.entries(b.by_strategy)
+        .map(([k, v]) => `${k.replace("_", " ")} +${fmt(v.pnl)} (${v.trades})`)
+        .join(" · ");
+      $("backtest").innerHTML =
+        `<span class="pos big-inline">${b.return_pct >= 0 ? "+" : ""}${b.return_pct}%</span> ` +
+        `over ${b.ticks} ticks — ${fmt(b.starting_bankroll)} → ${fmt(b.final_bankroll)}<br/>` +
+        `${b.trades} trades · win rate ${b.win_rate}% · avg ${fmt(b.avg_profit)}/trade · ` +
+        `max drawdown ${b.max_drawdown_pct}%<br/><span class="muted">${escapeHtml(strat)}</span>`;
+    } catch (e) {
+      $("backtest").textContent = "Backtest failed: " + e;
+    } finally {
+      btBtn.disabled = false;
+    }
+  });
 }
 
 connect();
