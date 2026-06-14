@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CLAUDE × QUANT — Polymarket Arbitrage</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">CLAUDE <span class="x">×</span> QUANT</div>
+  <div class="modes">
+    <span id="data-mode" class="pill">DATA: …</span>
+    <span id="exec-mode" class="pill">EXEC: …</span>
+    <span id="conn" class="pill pill-dim">● connecting</span>
+  </div>
+</header>
+
+<main class="grid">
+  <!-- PnL hero -->
+  <section class="card hero">
+    <div class="label">PORTFOLIO EQUITY</div>
+    <div id="equity" class="big">$0</div>
+    <div class="subrow">
+      <span id="pnl" class="pnl">+$0 (0.00%)</span>
+      <span class="muted">realized arb profit</span>
+    </div>
+    <canvas id="chart" height="160"></canvas>
+  </section>
+
+  <!-- KPI tiles -->
+  <section class="card kpis">
+    <div class="kpi"><div class="kpi-val" id="k-trades">0</div><div class="kpi-lbl">TRADES</div></div>
+    <div class="kpi"><div class="kpi-val" id="k-winrate">0%</div><div class="kpi-lbl">WIN RATE</div></div>
+    <div class="kpi"><div class="kpi-val" id="k-avg">$0</div><div class="kpi-lbl">AVG / TRADE</div></div>
+    <div class="kpi"><div class="kpi-val" id="k-opps">0</div><div class="kpi-lbl">OPPS FOUND</div></div>
+    <div class="kpi"><div class="kpi-val" id="k-scan">0ms</div><div class="kpi-lbl">SCAN TIME</div></div>
+    <div class="kpi"><div class="kpi-val" id="k-markets">0</div><div class="kpi-lbl">MARKETS</div></div>
+  </section>
+
+  <!-- Live opportunities -->
+  <section class="card wide">
+    <div class="card-head">LIVE ARBITRAGE OPPORTUNITIES <span class="muted" id="opp-count"></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>KIND</th><th>MARKET</th><th>COST</th><th>FLOOR</th>
+          <th>PROFIT</th><th>EDGE</th><th>CONF</th>
+        </tr></thead>
+        <tbody id="opps"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Trade feed -->
+  <section class="card wide">
+    <div class="card-head">EXECUTION LOG</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>MARKET</th><th>KIND</th><th>COST</th><th>P/L</th><th>STATUS</th>
+        </tr></thead>
+        <tbody id="trades"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  Paper-trading simulation by default. Detection is real; no funds move unless live execution is explicitly enabled.
+  Strategy basis: arXiv:2508.03474 · arXiv:1606.02825
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

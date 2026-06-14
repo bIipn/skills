@@ -1,0 +1,130 @@
+// Live dashboard: WebSocket stream with REST fallback + canvas equity chart.
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => "$" + Number(n).toLocaleString(undefined, {maximumFractionDigits: 2});
+
+let lastTradeKey = "";
+
+function render(s) {
+  $("equity").textContent = fmt(s.bankroll);
+  const pnlEl = $("pnl");
+  const sign = s.realized_pnl >= 0 ? "+" : "";
+  pnlEl.textContent = `${sign}${fmt(s.realized_pnl)} (${sign}${s.pnl_pct}%)`;
+  pnlEl.classList.toggle("neg", s.realized_pnl < 0);
+
+  $("k-trades").textContent = s.trades_total;
+  $("k-winrate").textContent = s.win_rate + "%";
+  $("k-avg").textContent = fmt(s.avg_profit);
+  $("k-opps").textContent = s.opportunities_found;
+  $("k-scan").textContent = s.last_scan_ms + "ms";
+  $("k-markets").textContent = s.markets_scanned;
+
+  // mode pills
+  const dm = $("data-mode");
+  dm.textContent = "DATA: " + s.data_mode.toUpperCase();
+  dm.className = "pill " + (s.data_mode === "live" ? "ok" : "paper");
+  const em = $("exec-mode");
+  em.textContent = "EXEC: " + (s.execution_live ? "LIVE" : "PAPER");
+  em.className = "pill " + (s.execution_live ? "live" : "paper");
+
+  renderOpps(s.live_opportunities);
+  renderTrades(s.recent_trades);
+  drawChart(s.equity_curve, s.starting_bankroll);
+}
+
+function renderOpps(opps) {
+  $("opp-count").textContent = `(${opps.length})`;
+  const tb = $("opps");
+  tb.innerHTML = opps.map(o => `
+    <tr>
+      <td><span class="tag ${o.kind}">${o.kind.replace("_", " ")}</span></td>
+      <td>${escapeHtml(o.description)}</td>
+      <td>${fmt(o.cost)}</td>
+      <td>${fmt(o.guaranteed_payoff)}</td>
+      <td class="pos">+${fmt(o.profit)}</td>
+      <td class="pos">${o.edge_pct}%</td>
+      <td>${(o.confidence * 100).toFixed(0)}%</td>
+    </tr>`).join("") || `<tr><td colspan="7" class="muted">scanning…</td></tr>`;
+}
+
+function renderTrades(trades) {
+  const tb = $("trades");
+  const topKey = trades.length ? `${trades[0].executed_at}` : "";
+  tb.innerHTML = trades.map((t, i) => {
+    const pl = t.realized_profit;
+    const cls = pl >= 0 ? "pos" : "neg";
+    const flash = (i === 0 && topKey !== lastTradeKey) ? "flash" : "";
+    return `<tr class="${flash}">
+      <td>${escapeHtml(t.description)}</td>
+      <td><span class="tag ${t.kind}">${t.kind.replace("_", " ")}</span></td>
+      <td>${fmt(t.realized_cost)}</td>
+      <td class="${cls}">${pl >= 0 ? "+" : ""}${fmt(pl)}</td>
+      <td class="${cls}">${escapeHtml(t.note)}</td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="5" class="muted">no trades yet</td></tr>`;
+  lastTradeKey = topKey;
+}
+
+function drawChart(curve, base) {
+  const c = $("chart");
+  const ctx = c.getContext("2d");
+  const w = c.width = c.clientWidth * devicePixelRatio;
+  const h = c.height = 160 * devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+  if (!curve || curve.length < 2) return;
+
+  const vals = curve.map(p => p.equity);
+  const min = Math.min(...vals, base), max = Math.max(...vals, base);
+  const pad = (max - min) * 0.1 || 1;
+  const lo = min - pad, hi = max + pad;
+  const x = i => (i / (curve.length - 1)) * w;
+  const y = v => h - ((v - lo) / (hi - lo)) * h;
+
+  // baseline
+  ctx.strokeStyle = "#1e2b3a"; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(0, y(base)); ctx.lineTo(w, y(base)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // area + line
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, "rgba(22,217,127,0.25)");
+  grad.addColorStop(1, "rgba(22,217,127,0)");
+  ctx.beginPath(); ctx.moveTo(0, h);
+  curve.forEach((p, i) => ctx.lineTo(x(i), y(p.equity)));
+  ctx.lineTo(w, h); ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+
+  ctx.beginPath();
+  curve.forEach((p, i) => i ? ctx.lineTo(x(i), y(p.equity)) : ctx.moveTo(x(i), y(p.equity)));
+  ctx.strokeStyle = "#16d97f"; ctx.lineWidth = 2 * devicePixelRatio; ctx.stroke();
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+function connect() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/ws`);
+  const conn = $("conn");
+  ws.onopen = () => { conn.textContent = "● live"; conn.className = "pill ok"; };
+  ws.onmessage = (e) => render(JSON.parse(e.data));
+  ws.onclose = () => {
+    conn.textContent = "● reconnecting"; conn.className = "pill pill-dim";
+    pollFallback();
+    setTimeout(connect, 3000);
+  };
+  ws.onerror = () => ws.close();
+}
+
+let pollTimer = null;
+function pollFallback() {
+  if (pollTimer) return;
+  pollTimer = setInterval(async () => {
+    try { render(await (await fetch("/api/state")).json()); } catch (_) {}
+  }, 2500);
+}
+
+connect();
+// initial paint via REST so the page isn't blank before first WS frame
+fetch("/api/state").then(r => r.json()).then(render).catch(() => {});
