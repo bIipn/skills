@@ -80,6 +80,10 @@ class Settings:
     scan_interval_s: float = field(
         default_factory=lambda: _get_float("PM_SCAN_INTERVAL", 2.0)
     )
+    # Use the real-time CLOB WebSocket book cache in live mode (else REST poll).
+    use_ws: bool = field(default_factory=lambda: _get_bool("PM_USE_WS", True))
+    # Max age (s) a cached WS book may be before falling back to REST.
+    ws_max_age_s: float = field(default_factory=lambda: _get_float("PM_WS_MAX_AGE", 5.0))
 
     @property
     def live_execution_enabled(self) -> bool:

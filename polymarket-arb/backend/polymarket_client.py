@@ -160,12 +160,25 @@ class LiveFeed:
     def __init__(self, limit: int = 40):
         self.limit = limit
         self._client = None
+        self._ws = None
+        if settings.use_ws:
+            from .ws_feed import CLOBWebSocketClient
+            self._ws = CLOBWebSocketClient()
 
     def _http(self):
         if self._client is None:
             import httpx
             self._client = httpx.AsyncClient(timeout=10.0)
         return self._client
+
+    async def _book_for(self, http, token_id):
+        """Prefer a warm WebSocket book; fall back to a REST snapshot."""
+        if self._ws is not None:
+            cached = self._ws.cache.get_book(str(token_id))
+            age = self._ws.cache.age(str(token_id))
+            if cached is not None and age is not None and age <= settings.ws_max_age_s:
+                return cached
+        return await self._fetch_book(http, token_id)
 
     async def snapshot(self) -> list[Market]:
         http = self._http()
@@ -195,9 +208,11 @@ class LiveFeed:
                     outcome_names = json.loads(outcome_names)
                 except Exception:
                     outcome_names = ["YES", "NO"]
+            if self._ws is not None:
+                self._ws.subscribe([str(t) for t in tokens])
             outcomes = []
             for tid, name in zip(tokens, outcome_names or []):
-                book = await self._fetch_book(http, tid)
+                book = await self._book_for(http, tid)
                 if book is None:
                     continue
                 asks, bids = book
@@ -212,6 +227,9 @@ class LiveFeed:
                     category=row.get("category", ""),
                     updated_at=time.time(),
                 ))
+        # Kick off the live WS subscription once tokens are known (idempotent).
+        if self._ws is not None:
+            self._ws.start()
         return markets
 
     async def _fetch_book(self, http, token_id):

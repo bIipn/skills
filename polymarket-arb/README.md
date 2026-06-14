@@ -24,6 +24,7 @@ sizes the optimal trade, and simulates execution — all visualised on a live
 | Layer | Module | What it does |
 |-------|--------|--------------|
 | Data feed | `backend/polymarket_client.py` | Synthetic `PaperFeed` (default) or read-only `LiveFeed` against the Polymarket Gamma + CLOB REST APIs |
+| Real-time books | `backend/ws_feed.py` | `LiveBookCache` + `CLOBWebSocketClient` — streams the CLOB market channel and keeps live books warm; `LiveFeed` prefers a fresh WS book over a REST snapshot (`PM_USE_WS`, on by default in live mode) |
 | Detection | `backend/arbitrage.py` | Three strategy families from the paper (below) |
 | Dependency AI | `backend/dependencies.py` | Classifies logically dependent market pairs into feasible joint outcomes — offline `HeuristicClassifier`, or `ClaudeClassifier` (claude-opus-4-8) when `ANTHROPIC_API_KEY` is set |
 | Optimization | `backend/optimizer.py` | Bregman projection onto the arbitrage-free manifold via **Frank-Wolfe** (conditional gradient) — grows an active set one vertex at a time instead of enumerating 2ⁿ outcomes |
