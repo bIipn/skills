@@ -25,6 +25,7 @@ sizes the optimal trade, and simulates execution — all visualised on a live
 |-------|--------|--------------|
 | Data feed | `backend/polymarket_client.py` | Synthetic `PaperFeed` (default) or read-only `LiveFeed` against the Polymarket Gamma + CLOB REST APIs |
 | Detection | `backend/arbitrage.py` | Three strategy families from the paper (below) |
+| Dependency AI | `backend/dependencies.py` | Classifies logically dependent market pairs into feasible joint outcomes — offline `HeuristicClassifier`, or `ClaudeClassifier` (claude-opus-4-8) when `ANTHROPIC_API_KEY` is set |
 | Optimization | `backend/optimizer.py` | Bregman projection onto the arbitrage-free manifold via **Frank-Wolfe** (conditional gradient) — grows an active set one vertex at a time instead of enumerating 2ⁿ outcomes |
 | Sizing | `backend/kelly.py` | Depth caps (≤50% of book) + fractional Kelly for the risk-adjusted component |
 | Execution | `backend/execution.py` | `PaperExecutor` models sequential CLOB fills *with* adverse slippage; guarded `LiveExecutor` stub |
@@ -47,6 +48,24 @@ sizes the optimal trade, and simulates execution — all visualised on a live
 The maximum extractable profit of a mispricing equals the **Bregman
 divergence** between the live price vector and its projection onto the
 arbitrage-free set — exactly what `optimizer.py` computes.
+
+### AI dependency classification
+
+The combinatorial detector needs to know which joint outcomes are *feasible*
+(the marginal-polytope constraints). `dependencies.py` provides this the way
+the paper does — with a classifier that reads two market descriptions and
+returns the set of logically possible `[A_yes, B_yes]` worlds:
+
+- **`HeuristicClassifier`** (default, offline) — rule-based implication
+  detection. Catches the canonical *"Republicans win PA by 5+ ⇒ Republicans
+  win PA"* superset relationship with no credentials.
+- **`ClaudeClassifier`** — set `ANTHROPIC_API_KEY` and it uses
+  `claude-opus-4-8` (adaptive thinking + a strict JSON schema via
+  `output_config.format`) to classify arbitrary pairs, mirroring the paper's
+  81% accuracy. Results are cached per pair.
+
+Feasible worlds expand into payoff vectors over all four tokens
+(`A_YES, A_NO, B_YES, B_NO`), so the LP can build hedged YES/NO portfolios.
 
 ---
 

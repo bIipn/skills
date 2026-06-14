@@ -49,6 +49,11 @@ td{padding:8px 10px;border-top:1px solid var(--line);font-size:12px}
 .tag.combinatorial{background:#3a2a10;color:#ffce6a}
 .pos{color:var(--green)}
 .neg{color:var(--red)}
+.strat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.strat-cell{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px}
+.strat-pnl{font-size:24px;font-weight:700;margin:8px 0 2px}
+.small{font-size:10px;margin-top:6px}
+@media(max-width:700px){.strat-grid{grid-template-columns:1fr}}
 .flash{animation:flash .8s ease}
 @keyframes flash{from{background:#15351f}to{background:transparent}}
 .foot{color:var(--muted);font-size:11px;text-align:center;padding:18px;

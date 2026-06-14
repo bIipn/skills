@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 
 from .arbitrage import scan_markets
 from .config import settings
+from .dependencies import make_classifier, scan_combinatorial
 from .execution import make_executor
 from .models import Market, Opportunity, TradeResult
 from .polymarket_client import make_feed
@@ -37,6 +38,12 @@ class EngineState:
     last_scan_ms: float = 0.0
     markets_scanned: int = 0
     tick: int = 0
+    # Per-strategy breakdown: kind -> {"pnl": float, "trades": int}
+    by_strategy: dict = field(default_factory=lambda: {
+        "single_condition": {"pnl": 0.0, "trades": 0},
+        "rebalance": {"pnl": 0.0, "trades": 0},
+        "combinatorial": {"pnl": 0.0, "trades": 0},
+    })
 
     @property
     def win_rate(self) -> float:
@@ -51,6 +58,7 @@ class ArbEngine:
     def __init__(self):
         self.feed = make_feed()
         self.executor = make_executor()
+        self.classifier = make_classifier()
         self.state = EngineState(
             bankroll=settings.starting_bankroll,
             starting_bankroll=settings.starting_bankroll,
@@ -64,6 +72,9 @@ class ArbEngine:
         t0 = time.perf_counter()
         markets: list[Market] = await self.feed.snapshot()
         opps = scan_markets(markets)
+        # Layer 2: combinatorial arbitrage across logically dependent markets.
+        opps.extend(scan_combinatorial(markets, self.classifier))
+        opps.sort(key=lambda o: o.profit, reverse=True)
         self.state.last_scan_ms = (time.perf_counter() - t0) * 1000.0
         self.state.markets_scanned = len(markets)
         self.state.live_opportunities = opps[:25]
@@ -82,6 +93,10 @@ class ArbEngine:
                 self.state.trades_won += 1
             self.state.realized_pnl += res.realized_profit
             self.state.bankroll += res.realized_profit
+            bucket = self.state.by_strategy.setdefault(
+                opp.kind, {"pnl": 0.0, "trades": 0})
+            bucket["pnl"] += res.realized_profit
+            bucket["trades"] += 1
             self.state.recent_trades.appendleft(res.to_dict())
 
         self.state.equity_curve.append(
@@ -122,6 +137,10 @@ class ArbEngine:
             "equity_curve": list(s.equity_curve),
             "recent_trades": list(s.recent_trades),
             "live_opportunities": [o.to_dict() for o in s.live_opportunities],
+            "by_strategy": {
+                k: {"pnl": round(v["pnl"], 2), "trades": v["trades"]}
+                for k, v in s.by_strategy.items()
+            },
         }
 
 

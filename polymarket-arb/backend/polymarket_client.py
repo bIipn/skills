@@ -114,6 +114,39 @@ class PaperFeed:
                 mutually_exclusive=True, category="election", updated_at=time.time(),
             ))
 
+        # Logically dependent pair: B ("...by 5+ points") implies A.
+        # ~16% of ticks inject an inconsistency where A_YES is cheap relative
+        # to B_YES's bid, creating a guaranteed combinatorial arb
+        # (buy A_YES + B_NO for < $1, floor $1 in every feasible world).
+        if self.rng.random() < 0.16:
+            a_yes_ask, a_no_ask = 0.40, 0.62   # A_YES underpriced
+            b_yes_ask, b_no_ask = 0.55, 0.45   # B_NO cheap → buy A_YES + B_NO < $1
+        else:
+            a_yes_ask, a_no_ask = 0.56, 0.46   # consistent: price(B) <= price(A)
+            b_yes_ask, b_no_ask = 0.30, 0.72
+        depth = self.rng.uniform(300, 1200)
+        markets.append(Market(
+            condition_id="dep-A", question="Will Republicans win Pennsylvania?",
+            mutually_exclusive=False, category="election", updated_at=time.time(),
+            outcomes=[
+                Outcome("dep-A-YES", "YES", _book(a_yes_ask, depth),
+                        _book(max(a_yes_ask - 0.02, 0.001), depth)),
+                Outcome("dep-A-NO", "NO", _book(a_no_ask, depth),
+                        _book(max(a_no_ask - 0.02, 0.001), depth)),
+            ],
+        ))
+        markets.append(Market(
+            condition_id="dep-B",
+            question="Will Republicans win Pennsylvania by 5+ points?",
+            mutually_exclusive=False, category="election", updated_at=time.time(),
+            outcomes=[
+                Outcome("dep-B-YES", "YES", _book(b_yes_ask, depth),
+                        _book(max(b_yes_ask - 0.02, 0.001), depth)),
+                Outcome("dep-B-NO", "NO", _book(b_no_ask, depth),
+                        _book(max(b_no_ask - 0.02, 0.001), depth)),
+            ],
+        ))
+
         return markets
 
 

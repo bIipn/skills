@@ -26,9 +26,29 @@ function render(s) {
   em.textContent = "EXEC: " + (s.execution_live ? "LIVE" : "PAPER");
   em.className = "pill " + (s.execution_live ? "live" : "paper");
 
+  renderStrategies(s.by_strategy);
   renderOpps(s.live_opportunities);
   renderTrades(s.recent_trades);
   drawChart(s.equity_curve, s.starting_bankroll);
+}
+
+const STRAT_LABELS = {
+  single_condition: "Single-condition (YES+NO<$1)",
+  rebalance: "Rebalance (buy-all outcomes)",
+  combinatorial: "Combinatorial (LP / dependencies)",
+};
+
+function renderStrategies(by) {
+  if (!by) return;
+  $("strategies").innerHTML = Object.entries(by).map(([kind, v]) => {
+    const cls = v.pnl >= 0 ? "pos" : "neg";
+    return `<div class="strat-cell">
+      <div class="tag ${kind}">${kind.replace("_", " ")}</div>
+      <div class="strat-pnl ${cls}">${v.pnl >= 0 ? "+" : ""}${fmt(v.pnl)}</div>
+      <div class="muted">${v.trades} trades</div>
+      <div class="muted small">${STRAT_LABELS[kind] || ""}</div>
+    </div>`;
+  }).join("");
 }
 
 function renderOpps(opps) {
