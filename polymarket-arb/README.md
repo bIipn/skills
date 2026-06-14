@@ -121,6 +121,23 @@ Two independent switches in `.env` (copy from `.env.example`):
 To paper-trade against **real live prices** (the recommended way to evaluate
 the strategy), set `PM_DATA_MODE=live` and leave `PM_EXECUTION_MODE=paper`.
 
+### Run it 24/7 (e.g. a Mac mini)
+
+The bot is a standalone process — run it unattended, supervised by the OS.
+**Don't run the trade loop inside Claude Code**; Claude Code is for building and
+monitoring, not the runtime. On macOS, one command sets up a launchd service
+that auto-starts on boot and auto-restarts on crash:
+
+```bash
+./deploy/install-macos.sh          # venv + deps + launchd agent
+sudo pmset -a sleep 0 disablesleep 1   # keep the Mac awake
+```
+
+Dashboard is then reachable on your LAN at `http://<host>:8000`; PnL/history
+persist in `arb_trades.db` across restarts. Full step-by-step (burner wallet,
+CLOB credentials, paper-on-live dry run, go-live gate) is in
+**[`SETUP_LIVE.md`](SETUP_LIVE.md)**.
+
 ---
 
 ## Architecture

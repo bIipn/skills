@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd agent template for the Polymarket arbitrage bot.
+  Do not edit __APPDIR__ by hand — deploy/install-macos.sh substitutes the
+  absolute path and installs the result to ~/Library/LaunchAgents/.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.polymarket-arb</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__APPDIR__/deploy/run.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__APPDIR__</string>
+
+    <!-- start on login/boot and keep it alive across crashes -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- don't hammer restart on a crash loop -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>StandardOutPath</key>
+    <string>__APPDIR__/logs/arb.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__APPDIR__/logs/arb.err.log</string>
+</dict>
+</plist>
