@@ -21,6 +21,7 @@ from .config import settings
 from .dependencies import make_classifier, scan_combinatorial
 from .execution import make_executor
 from .models import Market, Opportunity, TradeResult
+from .notifier import format_trade, make_notifier
 from .polymarket_client import make_feed
 from .storage import make_store
 
@@ -61,6 +62,7 @@ class ArbEngine:
         self.executor = make_executor()
         self.classifier = make_classifier()
         self.store = make_store()
+        self.notifier = make_notifier()
         self.state = EngineState(
             bankroll=settings.starting_bankroll,
             starting_bankroll=settings.starting_bankroll,
@@ -112,8 +114,11 @@ class ArbEngine:
                 opp.kind, {"pnl": 0.0, "trades": 0})
             bucket["pnl"] += res.realized_profit
             bucket["trades"] += 1
-            self.state.recent_trades.appendleft(res.to_dict())
+            trade_dict = res.to_dict()
+            self.state.recent_trades.appendleft(trade_dict)
             self.store.record(res)
+            if abs(res.realized_profit) >= settings.telegram_min_notify or not res.success:
+                self.notifier.notify(format_trade(trade_dict))
 
         self.state.equity_curve.append(
             {"t": time.time(), "equity": round(self.state.bankroll, 2)}
@@ -122,11 +127,16 @@ class ArbEngine:
 
     async def run(self):
         self._running = True
+        self.notifier.notify(
+            f"🚀 <b>arb-bot online</b>\n{settings.banner()}\n"
+            f"bankroll ${self.state.bankroll:,.2f}"
+        )
         while self._running:
             try:
                 await self.tick()
             except Exception as exc:  # keep the loop alive
                 print(f"[engine] tick error: {exc}")
+                self.notifier.notify_error(str(exc))
             await asyncio.sleep(settings.scan_interval_s)
 
     def stop(self):

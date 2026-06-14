@@ -137,6 +137,32 @@ The dashboard is reachable from any device on your LAN at
 
 ---
 
+## 7. Telegram alerts (optional)
+
+The bot can push a message to Telegram on every meaningful fill, on errors, and
+on startup. It's off until you set two env vars.
+
+1. **Create a bot:** open Telegram, message **@BotFather**, send `/newbot`,
+   follow the prompts. It gives you a **token** like `123456:ABC-DEF...`.
+2. **Get your chat id:** message your new bot once (say "hi"), then open
+   `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` in a browser and copy
+   the `chat.id` number. (Or message **@userinfobot**, which replies with your
+   id.) For a group, add the bot to the group and use the group's negative id.
+3. **Add to `.env`:**
+   ```ini
+   PM_TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+   PM_TELEGRAM_CHAT_ID=987654321
+   PM_TELEGRAM_MIN_NOTIFY=1.0    # only alert on fills with |profit| >= $1
+   ```
+4. Reload the service (`./deploy/install-macos.sh`). You'll get a "🚀 arb-bot
+   online" message on startup, then per-fill alerts and throttled error alerts.
+
+Quick test it works:
+```bash
+curl -s "https://api.telegram.org/bot<YOUR_TOKEN>/sendMessage" \
+  -d chat_id=<YOUR_CHAT_ID> -d text="arb-bot test ✅"
+```
+
 ## Go-live checklist
 
 - [ ] Legally permitted to trade Polymarket where I live

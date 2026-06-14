@@ -80,6 +80,15 @@ class Settings:
     scan_interval_s: float = field(
         default_factory=lambda: _get_float("PM_SCAN_INTERVAL", 2.0)
     )
+    # ---- Telegram alerts (optional) -----------------------------------
+    telegram_bot_token: str = field(
+        default_factory=lambda: os.getenv("PM_TELEGRAM_BOT_TOKEN", ""))
+    telegram_chat_id: str = field(
+        default_factory=lambda: os.getenv("PM_TELEGRAM_CHAT_ID", ""))
+    # Only push a fill alert when guaranteed profit >= this (avoids spam).
+    telegram_min_notify: float = field(
+        default_factory=lambda: _get_float("PM_TELEGRAM_MIN_NOTIFY", 1.0))
+
     # Use the real-time CLOB WebSocket book cache in live mode (else REST poll).
     use_ws: bool = field(default_factory=lambda: _get_bool("PM_USE_WS", True))
     # Max age (s) a cached WS book may be before falling back to REST.
