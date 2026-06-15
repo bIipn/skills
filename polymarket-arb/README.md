@@ -74,6 +74,11 @@ Feasible worlds expand into payoff vectors over all four tokens
 
 ## Quick start
 
+> Handing this to someone else to set up? Point them at
+> **[`COWORKER_SETUP.md`](COWORKER_SETUP.md)** — a no-secrets, demo-first guide
+> (`make install` → demo mode → done). Going live later is documented in
+> **[`SETUP_LIVE.md`](SETUP_LIVE.md)**.
+
 ```bash
 cd polymarket-arb
 python -m venv .venv && source .venv/bin/activate
