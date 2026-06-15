@@ -13,8 +13,10 @@ from dataclasses import dataclass, field
 
 from .arbitrage import scan_markets
 from .config import settings
+from .cross_venue import scan_cross_venue
 from .dependencies import HeuristicClassifier, scan_combinatorial
 from .execution import PaperExecutor
+from .kalshi_client import MultiVenueFeed
 from .polymarket_client import PaperFeed
 
 
@@ -58,6 +60,8 @@ class BacktestReport:
 
 async def _run(ticks: int, seed: int) -> BacktestReport:
     feed = PaperFeed(seed=seed)
+    if settings.cross_venue:
+        feed = MultiVenueFeed(feed, live=False, seed=seed)
     executor = PaperExecutor(seed=seed)
     classifier = HeuristicClassifier()
 
@@ -74,6 +78,8 @@ async def _run(ticks: int, seed: int) -> BacktestReport:
         markets = await feed.snapshot()
         opps = scan_markets(markets)
         opps.extend(scan_combinatorial(markets, classifier))
+        if settings.cross_venue:
+            opps.extend(scan_cross_venue(markets))
         opps.sort(key=lambda o: o.profit, reverse=True)
 
         for opp in opps:

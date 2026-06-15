@@ -134,6 +134,7 @@ td { padding: 9px 10px; border-top: 0.5px solid var(--separator); font-size: 12.
 .tag.single_condition { background: color-mix(in srgb, var(--blue) 22%, transparent); color: var(--blue); }
 .tag.rebalance { background: color-mix(in srgb, var(--green) 22%, transparent); color: var(--green); }
 .tag.combinatorial { background: color-mix(in srgb, var(--yellow) 24%, transparent); color: var(--yellow); }
+.tag.cross_venue { background: color-mix(in srgb, #bf5af2 26%, transparent); color: #bf5af2; }
 .pos { color: var(--green); }
 .neg { color: var(--red); }
 

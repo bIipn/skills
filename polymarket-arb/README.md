@@ -48,6 +48,15 @@ sizes the optimal trade, and simulates execution — all visualised on a live
    non-negative payoff in *every feasible joint outcome*, never brute-forcing
    the 2ⁿ space.
 
+4. **Cross-venue** (`cross_venue.py`, enable with `PM_CROSS_VENUE=1`) — the
+   *same* event priced differently on **Polymarket vs Kalshi**. Buy YES on the
+   cheaper venue and NO on the other for `< $1`; one resolves to $1. This is the
+   least-contested edge for a small operator (it needs accounts on both venues
+   and event matching, which intra-venue HFT systems don't do) and the most
+   realistic place to actually compete. `kalshi_client.py` adds the Kalshi feed;
+   Kalshi is the U.S.-regulated (CFTC) venue, relevant where Polymarket isn't
+   available. Confidence is < 1 (cross-venue resolution-source risk).
+
 The maximum extractable profit of a mispricing equals the **Bregman
 divergence** between the live price vector and its projection onto the
 arbitrage-free set — exactly what `optimizer.py` computes.

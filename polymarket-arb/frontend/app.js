@@ -54,6 +54,7 @@ const STRAT_LABELS = {
   single_condition: "Single-condition (YES+NO<$1)",
   rebalance: "Rebalance (buy-all outcomes)",
   combinatorial: "Combinatorial (LP / dependencies)",
+  cross_venue: "Cross-venue (Polymarket ↔ Kalshi)",
 };
 
 function renderStrategies(by) {

@@ -22,7 +22,8 @@ not predict outcomes or take directional risk; it locks in math.
 
 | | |
 |---|---|
-| 🎯 **Three strategies** | Single-condition (`YES+NO<$1`), rebalance (buy-all-outcomes), and combinatorial arbitrage across logically dependent markets (LP over the marginal polytope) |
+| 🎯 **Four strategies** | Single-condition (`YES+NO<$1`), rebalance (buy-all-outcomes), combinatorial (LP over the marginal polytope), and **cross-venue** (same event priced differently on Polymarket vs **Kalshi**) |
+| 🌐 **Multi-venue** | Kalshi adapter (U.S.-regulated venue) + cross-venue detector — the least-contested edge for a small operator |
 | 🧠 **AI dependency detection** | Classifies dependent market pairs into feasible joint outcomes (offline heuristics, or Claude when configured) |
 | 📐 **3-layer optimizer** | Bregman projection via Frank-Wolfe; depth-aware, multi-level VWAP sizing validated against the live book |
 | 💸 **Kelly sizing** | Fractional Kelly + book-depth caps |

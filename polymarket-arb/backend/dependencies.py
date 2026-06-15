@@ -211,6 +211,10 @@ def scan_combinatorial(markets: list[Market], classifier, max_pairs: int = 60):
         for j in range(i + 1, len(binaries)):
             if checked >= max_pairs:
                 return found
+            # Combinatorial dependencies are within a venue; cross-venue arb is
+            # handled by the cross_venue detector.
+            if binaries[i].venue != binaries[j].venue:
+                continue
             checked += 1
             res = classifier.classify(binaries[i], binaries[j])
             if res is None:

@@ -19,8 +19,10 @@ from dataclasses import dataclass, field
 from .arbitrage import scan_markets
 from .cloud_sync import make_cloud_sync
 from .config import settings
+from .cross_venue import scan_cross_venue
 from .dependencies import make_classifier, scan_combinatorial
 from .execution import make_executor
+from .kalshi_client import make_multi_venue_feed
 from .models import Market, Opportunity, TradeResult
 from .notifier import format_trade, make_notifier
 from .polymarket_client import make_feed
@@ -61,7 +63,7 @@ class EngineState:
 
 class ArbEngine:
     def __init__(self):
-        self.feed = make_feed()
+        self.feed = make_multi_venue_feed() if settings.cross_venue else make_feed()
         self.executor = make_executor()
         self.classifier = make_classifier()
         self.store = make_store()
@@ -95,6 +97,9 @@ class ArbEngine:
         opps = scan_markets(markets)
         # Layer 2: combinatorial arbitrage across logically dependent markets.
         opps.extend(scan_combinatorial(markets, self.classifier))
+        # Cross-venue arbitrage (same event on Polymarket vs Kalshi).
+        if settings.cross_venue:
+            opps.extend(scan_cross_venue(markets))
         opps.sort(key=lambda o: o.profit, reverse=True)
         self.state.last_scan_ms = (time.perf_counter() - t0) * 1000.0
         self.state.markets_scanned = len(markets)

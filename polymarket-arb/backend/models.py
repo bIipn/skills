@@ -62,6 +62,7 @@ class Market:
     outcomes: list[Outcome] = field(default_factory=list)
     mutually_exclusive: bool = True  # exactly one outcome pays $1
     category: str = ""
+    venue: str = "polymarket"        # "polymarket" | "kalshi" | ...
     updated_at: float = field(default_factory=time.time)
 
 
@@ -74,6 +75,7 @@ class Leg:
     side: str           # "BUY" or "SELL"
     price: float        # limit price
     size: float         # shares
+    venue: str = "polymarket"
 
 
 @dataclass

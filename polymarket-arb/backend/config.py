@@ -99,6 +99,12 @@ class Settings:
     cloud_sync_interval: float = field(
         default_factory=lambda: _get_float("PM_CLOUD_SYNC_INTERVAL", 5.0))
 
+    # ---- Cross-venue (Kalshi) -----------------------------------------
+    # Enable multi-venue mode: also pull Kalshi and detect cross-venue arbs.
+    cross_venue: bool = field(default_factory=lambda: _get_bool("PM_CROSS_VENUE", False))
+    kalshi_rest_url: str = field(default_factory=lambda: os.getenv(
+        "PM_KALSHI_URL", "https://api.elections.kalshi.com/trade-api/v2"))
+
     # Use the real-time CLOB WebSocket book cache in live mode (else REST poll).
     use_ws: bool = field(default_factory=lambda: _get_bool("PM_USE_WS", True))
     # Max age (s) a cached WS book may be before falling back to REST.
