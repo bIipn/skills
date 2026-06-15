@@ -105,39 +105,22 @@ class LiveExecutor:
                 note="LIVE execution not enabled (set PM_EXECUTION_MODE=live + credentials). "
                      "Refusing to place real orders.",
             )
-
         try:
-            from py_clob_client.clob_types import OrderArgs, OrderType
-            from py_clob_client.order_builder.constants import BUY, SELL
+            import py_clob_client  # noqa: F401
         except Exception as exc:
             return TradeResult(
                 opportunity=opp, fills=[], realized_cost=0.0, realized_profit=0.0,
                 success=False, note=f"py-clob-client not installed: {exc}",
             )
 
-        client = self._clob()
         fills: list[Fill] = []
         realized_cost = 0.0
         try:
             for leg in opp.legs:
-                side = BUY if leg.side == "BUY" else SELL
-                order = client.create_order(OrderArgs(
-                    price=leg.price, size=leg.size, side=side, token_id=leg.token_id,
-                ))
-                resp = client.post_order(order, OrderType.GTC)
-                # CLOB returns the matched/average price when available.
-                filled = float(resp.get("price", leg.price)) if isinstance(resp, dict) \
-                    else leg.price
-                slip = filled - leg.price
-                if leg.side == "BUY":
-                    realized_cost += filled * leg.size
-                else:
-                    realized_cost -= filled * leg.size
-                fills.append(Fill(
-                    token_id=leg.token_id, label=leg.label, side=leg.side,
-                    requested_price=leg.price, filled_price=round(filled, 4),
-                    size=leg.size, slippage=round(slip, 4),
-                ))
+                f = self.place_leg(leg)
+                fills.append(f)
+                realized_cost += (f.filled_price * f.size if leg.side == "BUY"
+                                  else -f.filled_price * f.size)
         except Exception as exc:
             return TradeResult(
                 opportunity=opp, fills=fills, realized_cost=round(realized_cost, 4),
@@ -152,8 +135,71 @@ class LiveExecutor:
             success=realized_profit >= 0, note="live order submitted",
         )
 
+    def place_leg(self, leg) -> Fill:
+        """Place one Polymarket CLOB order; return the resulting Fill."""
+        from py_clob_client.clob_types import OrderArgs, OrderType
+        from py_clob_client.order_builder.constants import BUY, SELL
+
+        client = self._clob()
+        side = BUY if leg.side == "BUY" else SELL
+        order = client.create_order(OrderArgs(
+            price=leg.price, size=leg.size, side=side, token_id=leg.token_id,
+        ))
+        resp = client.post_order(order, OrderType.GTC)
+        filled = float(resp.get("price", leg.price)) if isinstance(resp, dict) else leg.price
+        return Fill(
+            token_id=leg.token_id, label=leg.label, side=leg.side,
+            requested_price=leg.price, filled_price=round(filled, 4),
+            size=leg.size, slippage=round(filled - leg.price, 4),
+        )
+
+
+class RoutedExecutor:
+    """Routes each leg of an opportunity to its venue's live executor — so a
+    cross-venue arb places its Polymarket leg on Polymarket and its Kalshi leg
+    on Kalshi. Each venue is independently gated; a leg whose venue isn't
+    enabled fails and the trade is reported unsuccessful."""
+
+    def __init__(self):
+        self.poly = LiveExecutor()
+        from .kalshi_execution import make_kalshi_executor
+        self.kalshi = make_kalshi_executor()
+
+    def execute(self, opp: Opportunity) -> TradeResult:
+        fills: list[Fill] = []
+        realized_cost = 0.0
+        errors: list[str] = []
+        for leg in opp.legs:
+            try:
+                if leg.venue == "kalshi":
+                    if not settings.kalshi_live_execution_enabled:
+                        raise RuntimeError("Kalshi live execution not enabled")
+                    f = self.kalshi.place_leg(leg)
+                else:
+                    if not settings.live_execution_enabled:
+                        raise RuntimeError("Polymarket live execution not enabled")
+                    f = self.poly.place_leg(leg)
+                fills.append(f)
+                realized_cost += (f.filled_price * f.size if leg.side == "BUY"
+                                  else -f.filled_price * f.size)
+            except Exception as exc:
+                errors.append(f"{leg.venue} leg: {exc}")
+
+        success = not errors
+        realized_profit = (opp.guaranteed_payoff - realized_cost) if success else 0.0
+        return TradeResult(
+            opportunity=opp, fills=fills, realized_cost=round(realized_cost, 4),
+            realized_profit=round(realized_profit, 4), success=success,
+            note="routed live orders" if success else "; ".join(errors),
+        )
+
 
 def make_executor():
+    # Multi-venue live → route per leg; single-venue live → Polymarket; else paper.
+    if settings.cross_venue and (
+        settings.live_execution_enabled or settings.kalshi_live_execution_enabled
+    ):
+        return RoutedExecutor()
     if settings.live_execution_enabled:
         return LiveExecutor()
     return PaperExecutor()

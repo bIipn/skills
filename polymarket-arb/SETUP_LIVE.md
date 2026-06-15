@@ -96,6 +96,27 @@ Keep `PM_MIN_PROFIT` high and `PM_BANKROLL` small. Watch closely.
 
 ---
 
+## 5b. Cross-venue / Kalshi (optional)
+
+To also trade Kalshi (the U.S.-regulated venue) and cross-venue arbs:
+
+1. In Kalshi → **Account → API**, create an **API key** (you get a key id and
+   download an **RSA private key** `.pem`).
+2. `pip install cryptography` and add to `.env`:
+   ```ini
+   PM_CROSS_VENUE=1
+   PM_KALSHI_API_KEY_ID=<your key id>
+   PM_KALSHI_PRIVATE_KEY=/path/to/kalshi_key.pem   # PEM contents or a file path
+   ```
+3. With `PM_EXECUTION_MODE=live`, the router places each leg on its own venue —
+   the Polymarket leg on Polymarket, the Kalshi leg on Kalshi. Each venue is
+   independently gated; a leg whose venue isn't configured simply fails (the
+   trade is reported unsuccessful rather than half-filled silently).
+
+> ⚠️ Cross-venue arbs carry **resolution-source risk** — the two venues must
+> settle the same event the same way. Review these before trusting automation;
+> the detector flags them at < 100% confidence for this reason.
+
 ## 6. Run it 24/7 on the Mac mini (launchd)
 
 One command installs a background service that auto-starts on boot and

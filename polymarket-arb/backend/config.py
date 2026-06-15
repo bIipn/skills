@@ -104,6 +104,11 @@ class Settings:
     cross_venue: bool = field(default_factory=lambda: _get_bool("PM_CROSS_VENUE", False))
     kalshi_rest_url: str = field(default_factory=lambda: os.getenv(
         "PM_KALSHI_URL", "https://api.elections.kalshi.com/trade-api/v2"))
+    # Kalshi trading credentials (API key id + RSA private key, PEM or path).
+    kalshi_api_key_id: str = field(
+        default_factory=lambda: os.getenv("PM_KALSHI_API_KEY_ID", ""))
+    kalshi_private_key: str = field(
+        default_factory=lambda: os.getenv("PM_KALSHI_PRIVATE_KEY", ""))
 
     # Use the real-time CLOB WebSocket book cache in live mode (else REST poll).
     use_ws: bool = field(default_factory=lambda: _get_bool("PM_USE_WS", True))
@@ -116,6 +121,14 @@ class Settings:
             self.execution_mode == "live"
             and bool(self.api_key)
             and bool(self.wallet_pk)
+        )
+
+    @property
+    def kalshi_live_execution_enabled(self) -> bool:
+        return (
+            self.execution_mode == "live"
+            and bool(self.kalshi_api_key_id)
+            and bool(self.kalshi_private_key)
         )
 
     def banner(self) -> str:
