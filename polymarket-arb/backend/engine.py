@@ -40,12 +40,14 @@ class EngineState:
     last_scan_ms: float = 0.0
     markets_scanned: int = 0
     tick: int = 0
-    # Per-strategy breakdown: kind -> {"pnl": float, "trades": int}
+    # Per-strategy breakdown: kind -> {"pnl": float, "trades": int, "wins": int}
     by_strategy: dict = field(default_factory=lambda: {
-        "single_condition": {"pnl": 0.0, "trades": 0},
-        "rebalance": {"pnl": 0.0, "trades": 0},
-        "combinatorial": {"pnl": 0.0, "trades": 0},
+        "single_condition": {"pnl": 0.0, "trades": 0, "wins": 0},
+        "rebalance": {"pnl": 0.0, "trades": 0, "wins": 0},
+        "combinatorial": {"pnl": 0.0, "trades": 0, "wins": 0},
     })
+    # Opportunities detected but skipped because we couldn't afford the outlay.
+    opportunities_skipped: int = 0
 
     @property
     def win_rate(self) -> float:
@@ -102,6 +104,7 @@ class ArbEngine:
         for opp in opps:
             # Don't execute if we can't afford the outlay.
             if opp.cost > self.state.bankroll:
+                self.state.opportunities_skipped += 1
                 continue
             res = self.executor.execute(opp)
             results.append(res)
@@ -111,9 +114,11 @@ class ArbEngine:
             self.state.realized_pnl += res.realized_profit
             self.state.bankroll += res.realized_profit
             bucket = self.state.by_strategy.setdefault(
-                opp.kind, {"pnl": 0.0, "trades": 0})
+                opp.kind, {"pnl": 0.0, "trades": 0, "wins": 0})
             bucket["pnl"] += res.realized_profit
             bucket["trades"] += 1
+            if res.success:
+                bucket["wins"] = bucket.get("wins", 0) + 1
             trade_dict = res.to_dict()
             self.state.recent_trades.appendleft(trade_dict)
             self.store.record(res)
@@ -164,9 +169,37 @@ class ArbEngine:
             "recent_trades": list(s.recent_trades),
             "live_opportunities": [o.to_dict() for o in s.live_opportunities],
             "by_strategy": {
-                k: {"pnl": round(v["pnl"], 2), "trades": v["trades"]}
+                k: {"pnl": round(v["pnl"], 2), "trades": v["trades"],
+                    "wins": v.get("wins", 0)}
                 for k, v in s.by_strategy.items()
             },
+            "fill_report": self._fill_report(),
+        }
+
+    def _fill_report(self) -> dict:
+        """Demo decision metric: of detected opportunities, what fraction would
+        actually have filled (vs slipped away). Reported overall and per
+        strategy — mirrors the paper's 87% single-condition / 45% combinatorial.
+        """
+        s = self.state
+        def rate(wins, trades):
+            return round(wins / trades * 100, 1) if trades else 0.0
+        per = {
+            k: {
+                "fill_rate": rate(v.get("wins", 0), v["trades"]),
+                "trades": v["trades"],
+                "wins": v.get("wins", 0),
+            }
+            for k, v in s.by_strategy.items()
+        }
+        return {
+            "overall_fill_rate": rate(s.trades_won, s.trades_total),
+            "executed": s.trades_total,
+            "filled": s.trades_won,
+            "slipped": s.trades_total - s.trades_won,
+            "skipped_no_capital": s.opportunities_skipped,
+            "opportunities_found": s.opportunities_found,
+            "by_strategy": per,
         }
 
 

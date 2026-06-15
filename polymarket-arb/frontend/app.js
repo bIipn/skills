@@ -26,10 +26,28 @@ function render(s) {
   em.textContent = "EXEC: " + (s.execution_live ? "LIVE" : "PAPER");
   em.className = "pill " + (s.execution_live ? "live" : "paper");
 
+  renderFillReport(s.fill_report);
   renderStrategies(s.by_strategy);
   renderOpps(s.live_opportunities);
   renderTrades(s.recent_trades);
   drawChart(s.equity_curve, s.starting_bankroll);
+}
+
+function renderFillReport(r) {
+  if (!r) return;
+  const rateClass = r.overall_fill_rate >= 70 ? "pos"
+    : (r.overall_fill_rate >= 45 ? "" : "neg");
+  const per = Object.entries(r.by_strategy || {})
+    .map(([k, v]) => `<div class="strat-cell">
+        <div class="tag ${k}">${k.replace("_", " ")}</div>
+        <div class="strat-pnl ${v.fill_rate >= 70 ? "pos" : (v.fill_rate >= 45 ? "" : "neg")}">${v.fill_rate}%</div>
+        <div class="muted small">${v.wins}/${v.trades} filled</div>
+      </div>`).join("");
+  $("fillreport").innerHTML =
+    `<div class="subrow"><span class="big-inline ${rateClass}">${r.overall_fill_rate}% fill rate</span>
+       <span class="muted">${r.filled} filled · ${r.slipped} slipped · ${r.skipped_no_capital} skipped (no capital) · ${r.opportunities_found} opportunities seen</span></div>
+     <div class="strat-grid" style="margin-top:10px">${per}</div>
+     <div class="muted small" style="margin-top:8px">In the demo this is your go/no-go signal: a high fill rate on real prices means the edge is real. The paper saw ~87% single-condition, ~45% combinatorial.</div>`;
 }
 
 const STRAT_LABELS = {

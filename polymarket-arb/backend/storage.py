@@ -59,11 +59,12 @@ class TradeStore:
         total, pnl, won = cur.fetchone()
 
         by_strategy: dict = {}
-        for kind, n, kpnl in self._conn.execute(
-            "SELECT kind, COUNT(*), COALESCE(SUM(realized_pnl),0) "
-            "FROM trades GROUP BY kind"
+        for kind, n, kpnl, kwins in self._conn.execute(
+            "SELECT kind, COUNT(*), COALESCE(SUM(realized_pnl),0), "
+            "COALESCE(SUM(success),0) FROM trades GROUP BY kind"
         ):
-            by_strategy[kind] = {"pnl": float(kpnl), "trades": int(n)}
+            by_strategy[kind] = {"pnl": float(kpnl), "trades": int(n),
+                                 "wins": int(kwins)}
 
         return {
             "trades_total": int(total),
