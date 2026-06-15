@@ -3,23 +3,40 @@
 PaperExecutor simulates sequential CLOB fills including the adverse price
 movement the research highlights: legs fill one at a time, and after each
 fill the remaining liquidity may have moved, so a "guaranteed" plan can
-still slip. This models the real failure mode of CLOB arbitrage.
+still slip. With PM_SIMULATE_PARTIAL > 0 it also simulates a leg failing to
+fill so you can watch the unwind safety net work.
 
-LiveExecutor is intentionally a thin, guarded stub: it refuses to place
-real orders unless live execution is explicitly enabled with credentials,
-and even then routes through py-clob-client which the operator must wire
-up. The default path never sends a real order.
+LiveExecutor / KalshiExecutor place real orders only when live execution is
+explicitly enabled with credentials. RoutedExecutor routes each leg of a
+cross-venue arb to its venue. All live paths share one safety net: if any leg
+fails after others have filled, the filled legs are immediately unwound
+(sold back) to flatten exposure rather than leaving a naked directional
+position. The default path never sends a real order.
 """
 from __future__ import annotations
 
 import random
 
 from .config import settings
-from .models import Fill, Opportunity, TradeResult
+from .models import Fill, Leg, Opportunity, TradeResult
+
+
+def _flatten_leg(leg: Leg, fill: Fill) -> Leg:
+    """Opposing order that unwinds a filled leg back to flat."""
+    return Leg(
+        token_id=fill.token_id, label=f"unwind {leg.label}",
+        side="SELL" if leg.side == "BUY" else "BUY",
+        price=fill.filled_price, size=fill.size, venue=leg.venue,
+    )
+
+
+def _cost_delta(side: str, price: float, size: float) -> float:
+    return price * size if side == "BUY" else -price * size
 
 
 class PaperExecutor:
-    """Simulated sequential CLOB execution with realistic slippage."""
+    """Simulated sequential CLOB execution with realistic slippage and an
+    optional partial-fill simulation that exercises the unwind safety net."""
 
     def __init__(self, slip_prob: float = 0.13, seed: int | None = None):
         # ~13% per-leg chance the book moves before our leg lands, mirroring
@@ -28,26 +45,23 @@ class PaperExecutor:
         self.rng = random.Random(seed)
 
     def execute(self, opp: Opportunity) -> TradeResult:
+        # Optionally simulate a counterpart leg failing to fill.
+        if len(opp.legs) >= 2 and self.rng.random() < settings.simulate_partial:
+            return self._simulate_partial(opp)
+
         fills: list[Fill] = []
         realized_cost = 0.0
         slipped = False
-
         for leg in opp.legs:
             price = leg.price
             if self.rng.random() < self.slip_prob:
-                # Adverse move: pay a few cents more than planned.
-                bump = self.rng.uniform(0.01, 0.06)
-                price = min(leg.price + bump, 0.999)
+                price = min(leg.price + self.rng.uniform(0.01, 0.06), 0.999)
                 slipped = True
-            slippage = price - leg.price
-            if leg.side == "BUY":
-                realized_cost += price * leg.size
-            else:
-                realized_cost -= price * leg.size
+            realized_cost += _cost_delta(leg.side, price, leg.size)
             fills.append(Fill(
                 token_id=leg.token_id, label=leg.label, side=leg.side,
                 requested_price=leg.price, filled_price=round(price, 4),
-                size=leg.size, slippage=round(slippage, 4),
+                size=leg.size, slippage=round(price - leg.price, 4),
             ))
 
         realized_profit = opp.guaranteed_payoff - realized_cost
@@ -57,21 +71,38 @@ class PaperExecutor:
             else "slippage ate the edge (loss)"
         )
         return TradeResult(
-            opportunity=opp, fills=fills,
-            realized_cost=round(realized_cost, 4),
-            realized_profit=round(realized_profit, 4),
-            success=success, note=note,
+            opportunity=opp, fills=fills, realized_cost=round(realized_cost, 4),
+            realized_profit=round(realized_profit, 4), success=success, note=note,
+        )
+
+    def _simulate_partial(self, opp: Opportunity) -> TradeResult:
+        """One leg fails; unwind the legs that did fill, at a small loss."""
+        fail_idx = self.rng.randrange(len(opp.legs))
+        fills: list[Fill] = []
+        cost = 0.0
+        for leg in opp.legs[:fail_idx]:
+            fills.append(Fill(leg.token_id, leg.label, leg.side, leg.price,
+                              leg.price, leg.size, 0.0))
+            cost += _cost_delta(leg.side, leg.price, leg.size)
+        # Unwind each filled leg at ~1-4% worse (the cost of flattening fast).
+        unwound = 0
+        for leg in opp.legs[:fail_idx]:
+            back = leg.price * (1 - self.rng.uniform(0.01, 0.04))
+            cost += _cost_delta("SELL" if leg.side == "BUY" else "BUY", back, leg.size)
+            fills.append(Fill(leg.token_id, f"unwind {leg.label}",
+                              "SELL" if leg.side == "BUY" else "BUY",
+                              back, round(back, 4), leg.size, round(back - leg.price, 4)))
+            unwound += 1
+        return TradeResult(
+            opportunity=opp, fills=fills, realized_cost=round(cost, 4),
+            realized_profit=round(-cost, 4), success=False,
+            note=f"PARTIAL FILL — leg {fail_idx} missed; unwound {unwound} filled "
+                 f"leg(s), flat at a small loss",
         )
 
 
 class LiveExecutor:
-    """Live executor via py-clob-client. Hard-gated on explicit opt-in.
-
-    Places real GTC limit orders on the Polymarket CLOB for each leg of an
-    opportunity, sequentially, recording the actual fill price reported by
-    the exchange. Will not place any order unless `live_execution_enabled`
-    (PM_EXECUTION_MODE=live + API key + wallet key).
-    """
+    """Live Polymarket execution via py-clob-client. Hard-gated."""
 
     def __init__(self):
         self._client = None
@@ -90,10 +121,7 @@ class LiveExecutor:
                 api_passphrase=settings.api_passphrase,
             )
         self._client = ClobClient(
-            settings.clob_rest_url,
-            key=settings.wallet_pk,
-            chain_id=137,  # Polygon
-            creds=creds,
+            settings.clob_rest_url, key=settings.wallet_pk, chain_id=137, creds=creds,
         )
         return self._client
 
@@ -113,24 +141,23 @@ class LiveExecutor:
                 success=False, note=f"py-clob-client not installed: {exc}",
             )
 
-        fills: list[Fill] = []
+        placed: list[tuple[Leg, Fill]] = []
         realized_cost = 0.0
         try:
             for leg in opp.legs:
                 f = self.place_leg(leg)
-                fills.append(f)
-                realized_cost += (f.filled_price * f.size if leg.side == "BUY"
-                                  else -f.filled_price * f.size)
+                placed.append((leg, f))
+                realized_cost += _cost_delta(leg.side, f.filled_price, f.size)
         except Exception as exc:
-            return TradeResult(
-                opportunity=opp, fills=fills, realized_cost=round(realized_cost, 4),
-                realized_profit=0.0, success=False,
-                note=f"live order error after {len(fills)} legs: {exc}",
-            )
+            # Partial fill — flatten what filled rather than hold naked risk.
+            return _unwind_and_report(
+                opp, placed, realized_cost, str(exc),
+                lambda leg: self.place_leg(leg))
 
         realized_profit = opp.guaranteed_payoff - realized_cost
         return TradeResult(
-            opportunity=opp, fills=fills, realized_cost=round(realized_cost, 4),
+            opportunity=opp, fills=[f for _, f in placed],
+            realized_cost=round(realized_cost, 4),
             realized_profit=round(realized_profit, 4),
             success=realized_profit >= 0, note="live order submitted",
         )
@@ -154,44 +181,70 @@ class LiveExecutor:
         )
 
 
+def _unwind_and_report(opp, placed, realized_cost, err, place_fn) -> TradeResult:
+    """Shared safety net: sell back every filled leg, report a flat (small
+    loss) result, and surface any unwind that itself failed (naked risk)."""
+    fills = [f for _, f in placed]
+    fatal: list[str] = []
+    unwound = 0
+    for leg, fill in placed:
+        try:
+            flat = place_fn(_flatten_leg(leg, fill))
+            realized_cost += _cost_delta(flat.side, flat.filled_price, flat.size)
+            fills.append(flat)
+            unwound += 1
+        except Exception as exc:
+            fatal.append(f"UNWIND FAILED ({leg.venue} {fill.token_id}): {exc}")
+    note = (f"PARTIAL FILL ({err}) — unwound {unwound}/{len(placed)} leg(s)")
+    if fatal:
+        note += " — ⚠️ NAKED POSITION: " + "; ".join(fatal)
+    return TradeResult(
+        opportunity=opp, fills=fills, realized_cost=round(realized_cost, 4),
+        realized_profit=round(-realized_cost, 4), success=False, note=note,
+    )
+
+
 class RoutedExecutor:
-    """Routes each leg of an opportunity to its venue's live executor — so a
-    cross-venue arb places its Polymarket leg on Polymarket and its Kalshi leg
-    on Kalshi. Each venue is independently gated; a leg whose venue isn't
-    enabled fails and the trade is reported unsuccessful."""
+    """Routes each leg of a (cross-venue) opportunity to its venue's live
+    executor, with the same partial-fill unwind safety net."""
 
     def __init__(self):
         self.poly = LiveExecutor()
         from .kalshi_execution import make_kalshi_executor
         self.kalshi = make_kalshi_executor()
 
+    def _place(self, leg: Leg) -> Fill:
+        if leg.venue == "kalshi":
+            if not settings.kalshi_live_execution_enabled:
+                raise RuntimeError("Kalshi live execution not enabled")
+            return self.kalshi.place_leg(leg)
+        if not settings.live_execution_enabled:
+            raise RuntimeError("Polymarket live execution not enabled")
+        return self.poly.place_leg(leg)
+
     def execute(self, opp: Opportunity) -> TradeResult:
-        fills: list[Fill] = []
+        placed: list[tuple[Leg, Fill]] = []
         realized_cost = 0.0
-        errors: list[str] = []
+        first_err = None
         for leg in opp.legs:
             try:
-                if leg.venue == "kalshi":
-                    if not settings.kalshi_live_execution_enabled:
-                        raise RuntimeError("Kalshi live execution not enabled")
-                    f = self.kalshi.place_leg(leg)
-                else:
-                    if not settings.live_execution_enabled:
-                        raise RuntimeError("Polymarket live execution not enabled")
-                    f = self.poly.place_leg(leg)
-                fills.append(f)
-                realized_cost += (f.filled_price * f.size if leg.side == "BUY"
-                                  else -f.filled_price * f.size)
+                f = self._place(leg)
+                placed.append((leg, f))
+                realized_cost += _cost_delta(leg.side, f.filled_price, f.size)
             except Exception as exc:
-                errors.append(f"{leg.venue} leg: {exc}")
+                first_err = f"{leg.venue} leg: {exc}"
+                break  # stop on first failure; unwind what filled
 
-        success = not errors
-        realized_profit = (opp.guaranteed_payoff - realized_cost) if success else 0.0
-        return TradeResult(
-            opportunity=opp, fills=fills, realized_cost=round(realized_cost, 4),
-            realized_profit=round(realized_profit, 4), success=success,
-            note="routed live orders" if success else "; ".join(errors),
-        )
+        if first_err is None:
+            realized_profit = opp.guaranteed_payoff - realized_cost
+            return TradeResult(
+                opportunity=opp, fills=[f for _, f in placed],
+                realized_cost=round(realized_cost, 4),
+                realized_profit=round(realized_profit, 4),
+                success=realized_profit >= 0, note="routed live orders",
+            )
+        # Partial (or zero) fill — flatten everything that did fill.
+        return _unwind_and_report(opp, placed, realized_cost, first_err, self._place)
 
 
 def make_executor():

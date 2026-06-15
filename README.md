@@ -10,6 +10,8 @@ Real-time WebSocket data · three arbitrage strategies · Bregman/Frank-Wolfe op
 
 ---
 
+> 🖥️ **Setting this up on a Mac mini?** Start with **[START_HERE.md](START_HERE.md)** — a no-secrets, demo-first walkthrough for running it via Claude Code.
+
 The bot scans Polymarket's YES/NO outcome tokens and trades **only guaranteed
 mispricings** — baskets that pay a certain **$1** for **less than $1**. It does
 not predict outcomes or take directional risk; it locks in math.

@@ -75,6 +75,10 @@ class Settings:
     )
     # Polymarket taker fee (currently 0 on most markets; configurable).
     taker_fee_bps: float = field(default_factory=lambda: _get_float("PM_FEE_BPS", 0.0))
+    # Demo only: probability a leg fails to fill, exercising the unwind safety
+    # net (0 = off, default). Lets you see partial-fill handling in paper mode.
+    simulate_partial: float = field(
+        default_factory=lambda: _get_float("PM_SIMULATE_PARTIAL", 0.0))
 
     # Scan loop interval in seconds (paper mode tick rate).
     scan_interval_s: float = field(
