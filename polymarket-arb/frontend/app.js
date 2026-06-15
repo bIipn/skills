@@ -190,6 +190,42 @@ if (btBtn) {
   });
 }
 
-connect();
-// initial paint via REST so the page isn't blank before first WS frame
-fetch("/api/state").then(r => r.json()).then(render).catch(() => {});
+// Cloud-hosted (Vercel) reads the Mac mini's snapshot from Supabase; the local
+// build streams over WebSocket. Same UI, two data sources.
+function supabasePoll() {
+  const { url, key } = window.SUPABASE_CONFIG;
+  const conn = $("conn");
+  // The backtest button needs the local backend; hide it in the cloud view.
+  const btCard = btBtn && btBtn.closest(".card");
+  if (btCard) btCard.style.display = "none";
+
+  async function tick() {
+    try {
+      const r = await fetch(
+        `${url}/rest/v1/bot_snapshot?id=eq.live&select=data,updated_at`,
+        { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+      const rows = await r.json();
+      if (rows && rows[0] && rows[0].data) {
+        render(rows[0].data);
+        const age = rows[0].updated_at
+          ? Math.round((Date.now() - new Date(rows[0].updated_at)) / 1000) : null;
+        conn.textContent = age !== null && age < 30 ? "● live (cloud)" : `● ${age}s ago`;
+        conn.className = age !== null && age < 30 ? "pill ok" : "pill pill-dim";
+      } else {
+        conn.textContent = "● waiting for bot"; conn.className = "pill pill-dim";
+      }
+    } catch (e) {
+      conn.textContent = "● offline"; conn.className = "pill pill-dim";
+    }
+  }
+  tick();
+  setInterval(tick, 3000);
+}
+
+if (window.SUPABASE_CONFIG) {
+  supabasePoll();
+} else {
+  connect();
+  // initial paint via REST so the page isn't blank before first WS frame
+  fetch("/api/state").then(r => r.json()).then(render).catch(() => {});
+}

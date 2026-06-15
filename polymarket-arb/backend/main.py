@@ -10,7 +10,7 @@ import json
 import os
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
@@ -76,10 +76,8 @@ async def ws(websocket: WebSocket):
         return
 
 
-@app.get("/")
-async def index():
-    return FileResponse(os.path.join(_FRONTEND_DIR, "index.html"))
-
-
+# Serve the dashboard at the root. API/WS routes above are registered first and
+# take precedence; everything else (index.html, style.css, app.js, config.js)
+# is served statically — the same files deploy unchanged to Vercel.
 if os.path.isdir(_FRONTEND_DIR):
-    app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="static")
+    app.mount("/", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")

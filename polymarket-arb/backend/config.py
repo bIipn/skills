@@ -89,6 +89,14 @@ class Settings:
     telegram_min_notify: float = field(
         default_factory=lambda: _get_float("PM_TELEGRAM_MIN_NOTIFY", 1.0))
 
+    # ---- Cloud sync (optional, for the hosted Vercel dashboard) --------
+    # Service key lives ONLY on the bot host; the dashboard uses the anon key.
+    supabase_url: str = field(default_factory=lambda: os.getenv("PM_SUPABASE_URL", ""))
+    supabase_service_key: str = field(
+        default_factory=lambda: os.getenv("PM_SUPABASE_SERVICE_KEY", ""))
+    cloud_sync_interval: float = field(
+        default_factory=lambda: _get_float("PM_CLOUD_SYNC_INTERVAL", 5.0))
+
     # Use the real-time CLOB WebSocket book cache in live mode (else REST poll).
     use_ws: bool = field(default_factory=lambda: _get_bool("PM_USE_WS", True))
     # Max age (s) a cached WS book may be before falling back to REST.

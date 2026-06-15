@@ -17,6 +17,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from .arbitrage import scan_markets
+from .cloud_sync import make_cloud_sync
 from .config import settings
 from .dependencies import make_classifier, scan_combinatorial
 from .execution import make_executor
@@ -65,6 +66,7 @@ class ArbEngine:
         self.classifier = make_classifier()
         self.store = make_store()
         self.notifier = make_notifier()
+        self.cloud = make_cloud_sync()
         self.state = EngineState(
             bankroll=settings.starting_bankroll,
             starting_bankroll=settings.starting_bankroll,
@@ -128,6 +130,8 @@ class ArbEngine:
         self.state.equity_curve.append(
             {"t": time.time(), "equity": round(self.state.bankroll, 2)}
         )
+        # Publish the snapshot (demo or live) to the cloud dashboard (throttled).
+        self.cloud.maybe_push(self.snapshot())
         return results
 
     async def run(self):

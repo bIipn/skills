@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>CLAUDE × QUANT — Polymarket Arbitrage</title>
-<link rel="stylesheet" href="/static/style.css" />
+<link rel="stylesheet" href="style.css" />
 </head>
 <body>
 <header class="topbar">
@@ -12,20 +12,22 @@
   <div class="modes">
     <span id="data-mode" class="pill">DATA: …</span>
     <span id="exec-mode" class="pill">EXEC: …</span>
-    <span id="conn" class="pill pill-dim">● connecting</span>
+    <span id="conn" class="pill pill-dim" role="status" aria-live="polite">● connecting</span>
   </div>
 </header>
 
 <main class="grid">
   <!-- PnL hero -->
   <section class="card hero">
-    <div class="label">PORTFOLIO EQUITY</div>
-    <div id="equity" class="big">$0</div>
+    <div class="label">Portfolio Equity</div>
+    <div id="equity" class="big" role="status" aria-live="polite"
+         aria-label="Portfolio equity">$0</div>
     <div class="subrow">
-      <span id="pnl" class="pnl">+$0 (0.00%)</span>
+      <span id="pnl" class="pnl" aria-label="Realized profit">+$0 (0.00%)</span>
       <span class="muted">realized arb profit</span>
     </div>
-    <canvas id="chart" height="160"></canvas>
+    <canvas id="chart" height="160" role="img"
+            aria-label="Equity curve over time"></canvas>
   </section>
 
   <!-- KPI tiles -->
@@ -92,6 +94,7 @@
   Strategy basis: arXiv:2508.03474 · arXiv:1606.02825
 </footer>
 
-<script src="/static/app.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
