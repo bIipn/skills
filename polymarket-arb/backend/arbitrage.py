@@ -31,6 +31,52 @@ def _fee(notional: float) -> float:
     return notional * settings.taker_fee_bps / 10_000.0
 
 
+def _walk_basket(sides: list[BookSide], cap_units: float):
+    """Depth-aware sizing: greedily take units across *all* book levels while
+    a unit (one share of every side) still costs < $1, i.e. stays a guaranteed
+    profit. Returns (units, total_cost_vwap, worst_price_per_side).
+
+    A "unit" pays exactly $1 at resolution (one side wins), so any unit whose
+    combined ask cost is < $1 is locked-in profit. Walking past the top level
+    captures the full fillable size and prices it at the real VWAP instead of
+    pretending the best level is infinitely deep.
+    """
+    levels = [[(l.price, l.size) for l in s.levels] for s in sides]
+    if any(not lv for lv in levels):
+        return 0.0, 0.0, []
+    idx = [0] * len(sides)
+    rem = [levels[k][0][1] for k in range(len(sides))]
+    units = 0.0
+    cost = 0.0
+    worst = [levels[k][0][0] for k in range(len(sides))]
+
+    while units < cap_units and all(idx[k] < len(levels[k]) for k in range(len(sides))):
+        prices = [levels[k][idx[k]][0] for k in range(len(sides))]
+        unit_cost = sum(prices)
+        if unit_cost >= 1.0 - 1e-9:
+            break  # this and every deeper unit is no longer profitable
+        q = min(min(rem), cap_units - units)
+        if q <= 0:
+            break
+        units += q
+        cost += q * unit_cost
+        for k in range(len(sides)):
+            worst[k] = prices[k]
+            rem[k] -= q
+            if rem[k] <= 1e-9:
+                idx[k] += 1
+                rem[k] = levels[k][idx[k]][1] if idx[k] < len(levels[k]) else 0.0
+    return units, cost, worst
+
+
+def _basket_cap(sides: list[BookSide]) -> float:
+    """Depth cap: a fraction of the thinnest side's *total* depth."""
+    depths = [sum(l.size for l in s.levels) for s in sides]
+    if not depths or min(depths) <= 0:
+        return 0.0
+    return min(depths) * settings.max_book_depth_fraction
+
+
 def _enrich(opp: Opportunity, prices: np.ndarray, vertices: np.ndarray) -> Opportunity:
     """Attach Bregman/Frank-Wolfe telemetry to a detected opportunity.
 
@@ -64,14 +110,13 @@ def detect_single_condition(market: Market) -> Optional[Opportunity]:
     if combined >= 1.0 - 1e-9:
         return None  # no edge on the buy side
 
-    # Size limited by the thinner side's depth at the best price.
-    yes_depth = yes.asks.depth_value(yes.best_ask)
-    no_depth = no.asks.depth_value(no.best_ask)
-    size = depth_capped_size(min(yes_depth, no_depth))
+    # Depth-aware sizing: walk both books, take every share that still clears
+    # $1, priced at the true VWAP (Layer-3 live-book validation).
+    sides = [yes.asks, no.asks]
+    size, cost, worst = _walk_basket(sides, _basket_cap(sides))
     if size <= 0:
         return None
 
-    cost = (yes.best_ask + no.best_ask) * size
     fees = _fee(cost)
     payoff = 1.0 * size  # one of the two pays $1/share
     profit = payoff - cost - fees
@@ -79,8 +124,8 @@ def detect_single_condition(market: Market) -> Optional[Opportunity]:
         return None
 
     legs = [
-        Leg(yes.token_id, yes.label, "BUY", yes.best_ask, size),
-        Leg(no.token_id, no.label, "BUY", no.best_ask, size),
+        Leg(yes.token_id, yes.label, "BUY", worst[0], size),
+        Leg(no.token_id, no.label, "BUY", worst[1], size),
     ]
     opp = Opportunity(
         kind="single_condition",
@@ -112,13 +157,12 @@ def detect_rebalance(market: Market) -> Optional[Opportunity]:
     if total >= 1.0 - 1e-9:
         return None
 
-    # Cap size by the thinnest leg.
-    depths = [o.asks.depth_value(o.best_ask) for o in market.outcomes]
-    size = depth_capped_size(min(depths))
+    # Depth-aware sizing across every outcome's book.
+    sides = [o.asks for o in market.outcomes]
+    size, cost, worst = _walk_basket(sides, _basket_cap(sides))
     if size <= 0:
         return None
 
-    cost = total * size
     fees = _fee(cost)
     payoff = 1.0 * size
     profit = payoff - cost - fees
@@ -126,7 +170,8 @@ def detect_rebalance(market: Market) -> Optional[Opportunity]:
         return None
 
     legs = [
-        Leg(o.token_id, o.label, "BUY", o.best_ask, size) for o in market.outcomes
+        Leg(o.token_id, o.label, "BUY", worst[k], size)
+        for k, o in enumerate(market.outcomes)
     ]
     opp = Opportunity(
         kind="rebalance",
