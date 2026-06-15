@@ -143,26 +143,64 @@ function escapeHtml(s) {
   }[c]));
 }
 
+let wsEverOpened = false;
 function connect() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
   const conn = $("conn");
-  ws.onopen = () => { conn.textContent = "● live"; conn.className = "pill ok"; };
+  ws.onopen = () => { wsEverOpened = true; conn.textContent = "● live"; conn.className = "pill ok"; };
   ws.onmessage = (e) => render(JSON.parse(e.data));
   ws.onclose = () => {
-    conn.textContent = "● reconnecting"; conn.className = "pill pill-dim";
-    pollFallback();
-    setTimeout(connect, 3000);
+    if (wsEverOpened) {
+      // Live host (local FastAPI) dropped — reconnect and poll meanwhile.
+      conn.textContent = "● reconnecting"; conn.className = "pill pill-dim";
+      pollFallback();
+      setTimeout(connect, 3000);
+    } else {
+      // WebSocket never connected → we're on a static host (Vercel). Poll the
+      // serverless /api/state, which serves the Mac mini's pushed snapshot.
+      cloudMode();
+    }
   };
   ws.onerror = () => ws.close();
 }
+
+// Where the hosted dashboard reads state from (overridable via config.js).
+const STATE_URL = window.CLOUD_STATE_URL || "/api/state";
 
 let pollTimer = null;
 function pollFallback() {
   if (pollTimer) return;
   pollTimer = setInterval(async () => {
-    try { render(await (await fetch("/api/state")).json()); } catch (_) {}
+    try {
+      const j = await (await fetch(STATE_URL, { cache: "no-store" })).json();
+      if (j && j.bankroll !== undefined) render(j);
+    } catch (_) {}
   }, 2500);
+}
+
+function cloudMode() {
+  const conn = $("conn");
+  const btCard = btBtn && btBtn.closest(".card");
+  if (btCard) btCard.style.display = "none";  // backtest needs the local backend
+  async function tick() {
+    try {
+      const j = await (await fetch(STATE_URL, { cache: "no-store" })).json();
+      if (j && j.bankroll !== undefined) {
+        render(j);
+        const age = j._synced_at ? Math.round((Date.now() - j._synced_at) / 1000) : null;
+        conn.textContent = (age !== null && age < 30) ? "● live (cloud)"
+          : (age !== null ? `● ${age}s ago` : "● cloud");
+        conn.className = (age === null || age < 30) ? "pill ok" : "pill pill-dim";
+      } else {
+        conn.textContent = "● waiting for bot"; conn.className = "pill pill-dim";
+      }
+    } catch (_) {
+      conn.textContent = "● offline"; conn.className = "pill pill-dim";
+    }
+  }
+  tick();
+  setInterval(tick, 3000);
 }
 
 // Backtest runner
@@ -190,42 +228,10 @@ if (btBtn) {
   });
 }
 
-// Cloud-hosted (Vercel) reads the Mac mini's snapshot from Supabase; the local
-// build streams over WebSocket. Same UI, two data sources.
-function supabasePoll() {
-  const { url, key } = window.SUPABASE_CONFIG;
-  const conn = $("conn");
-  // The backtest button needs the local backend; hide it in the cloud view.
-  const btCard = btBtn && btBtn.closest(".card");
-  if (btCard) btCard.style.display = "none";
-
-  async function tick() {
-    try {
-      const r = await fetch(
-        `${url}/rest/v1/bot_snapshot?id=eq.live&select=data,updated_at`,
-        { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-      const rows = await r.json();
-      if (rows && rows[0] && rows[0].data) {
-        render(rows[0].data);
-        const age = rows[0].updated_at
-          ? Math.round((Date.now() - new Date(rows[0].updated_at)) / 1000) : null;
-        conn.textContent = age !== null && age < 30 ? "● live (cloud)" : `● ${age}s ago`;
-        conn.className = age !== null && age < 30 ? "pill ok" : "pill pill-dim";
-      } else {
-        conn.textContent = "● waiting for bot"; conn.className = "pill pill-dim";
-      }
-    } catch (e) {
-      conn.textContent = "● offline"; conn.className = "pill pill-dim";
-    }
-  }
-  tick();
-  setInterval(tick, 3000);
-}
-
-if (window.SUPABASE_CONFIG) {
-  supabasePoll();
-} else {
-  connect();
-  // initial paint via REST so the page isn't blank before first WS frame
-  fetch("/api/state").then(r => r.json()).then(render).catch(() => {});
-}
+// Try WebSocket first (local FastAPI). If it never connects, connect()'s
+// onclose switches to cloud polling automatically. Also paint once up front.
+connect();
+fetch(STATE_URL, { cache: "no-store" })
+  .then(r => r.json())
+  .then(j => { if (j && j.bankroll !== undefined) render(j); })
+  .catch(() => {});

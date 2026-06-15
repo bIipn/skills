@@ -90,10 +90,12 @@ class Settings:
         default_factory=lambda: _get_float("PM_TELEGRAM_MIN_NOTIFY", 1.0))
 
     # ---- Cloud sync (optional, for the hosted Vercel dashboard) --------
-    # Service key lives ONLY on the bot host; the dashboard uses the anon key.
-    supabase_url: str = field(default_factory=lambda: os.getenv("PM_SUPABASE_URL", ""))
-    supabase_service_key: str = field(
-        default_factory=lambda: os.getenv("PM_SUPABASE_SERVICE_KEY", ""))
+    # The bot POSTs its public snapshot to the Vercel /api/ingest endpoint,
+    # authenticated with a shared secret. No wallet key is ever sent.
+    cloud_ingest_url: str = field(
+        default_factory=lambda: os.getenv("PM_CLOUD_INGEST_URL", ""))
+    cloud_ingest_token: str = field(
+        default_factory=lambda: os.getenv("PM_CLOUD_INGEST_TOKEN", ""))
     cloud_sync_interval: float = field(
         default_factory=lambda: _get_float("PM_CLOUD_SYNC_INTERVAL", 5.0))
 

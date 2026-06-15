@@ -1,13 +1,14 @@
-"""Push the bot's live snapshot to Supabase so a hosted dashboard (Vercel) can
-read it from anywhere — in demo or live mode alike.
+"""Push the bot's live snapshot to the hosted (Vercel) dashboard so it's
+viewable from anywhere — in demo or live mode alike.
 
-The Mac mini holds the **service key** (write access) in its local .env; the
-hosted dashboard only ever uses the public anon key (read-only via RLS). No
-wallet key or secret is ever sent — only the public state snapshot (PnL,
-opportunities, trades, fill report).
+The Mac mini POSTs its public snapshot to the Vercel `/api/ingest` serverless
+function, authenticated with a shared secret token. Vercel KV stores the latest
+snapshot; the dashboard reads it via `/api/state`. Only the **public** state
+(PnL, opportunities, trades, fill report) is sent — never a wallet key or any
+secret.
 
 Best-effort and non-blocking: a failed sync never stalls or crashes the engine.
-No-op unless PM_SUPABASE_URL and PM_SUPABASE_SERVICE_KEY are set.
+No-op unless PM_CLOUD_INGEST_URL and PM_CLOUD_INGEST_TOKEN are set.
 """
 from __future__ import annotations
 
@@ -19,15 +20,15 @@ from .config import settings
 
 
 class CloudSync:
-    def __init__(self, url: str = "", service_key: str = "", interval: float = 5.0):
-        self.url = url.rstrip("/")
-        self.key = service_key
+    def __init__(self, ingest_url: str = "", token: str = "", interval: float = 5.0):
+        self.url = ingest_url
+        self.token = token
         self.interval = interval
-        self.enabled = bool(url and service_key)
+        self.enabled = bool(ingest_url and token)
         self._last = 0.0
 
     def maybe_push(self, snapshot: dict) -> None:
-        """Throttled, fire-and-forget upsert of the latest snapshot."""
+        """Throttled, fire-and-forget push of the latest snapshot."""
         if not self.enabled:
             return
         now = time.time()
@@ -43,19 +44,12 @@ class CloudSync:
     def _push_sync(self, snapshot: dict) -> None:
         import urllib.request
 
-        body = json.dumps({
-            "id": "live",
-            "data": snapshot,
-            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        }).encode()
+        body = json.dumps({"data": snapshot}).encode()
         req = urllib.request.Request(
-            f"{self.url}/rest/v1/bot_snapshot?on_conflict=id",
-            data=body, method="POST",
+            self.url, data=body, method="POST",
             headers={
-                "apikey": self.key,
-                "Authorization": f"Bearer {self.key}",
                 "Content-Type": "application/json",
-                "Prefer": "resolution=merge-duplicates",
+                "Authorization": f"Bearer {self.token}",
             },
         )
         try:
@@ -66,6 +60,6 @@ class CloudSync:
 
 def make_cloud_sync() -> CloudSync:
     return CloudSync(
-        settings.supabase_url, settings.supabase_service_key,
+        settings.cloud_ingest_url, settings.cloud_ingest_token,
         settings.cloud_sync_interval,
     )

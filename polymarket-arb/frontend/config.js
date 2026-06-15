@@ -1,6 +1,10 @@
-// Cloud dashboard config. Empty locally (the dashboard streams over WebSocket
-// from the local FastAPI server). On the hosted Vercel build this file is
-// replaced with the Supabase URL + public anon key so it reads the Mac mini's
-// snapshot from anywhere. The anon key is read-only (RLS) and safe to publish.
+// Optional dashboard config.
 //
-// window.SUPABASE_CONFIG = { url: "https://xxxx.supabase.co", key: "sb_publishable_..." };
+// Local (FastAPI): leave this empty — the dashboard streams over WebSocket and
+// falls back to /api/state automatically.
+//
+// Hosted (Vercel): the dashboard auto-detects the static host and polls
+// /api/state (a serverless function backed by Vercel KV). You only need to set
+// CLOUD_STATE_URL if your state endpoint lives somewhere else:
+//
+// window.CLOUD_STATE_URL = "/api/state";

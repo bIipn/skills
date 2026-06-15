@@ -1,0 +1,9 @@
+{
+  "name": "polymarket-arb-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hosted dashboard for the Polymarket arbitrage bot (Vercel + KV).",
+  "dependencies": {
+    "@vercel/kv": "^3.0.0"
+  }
+}

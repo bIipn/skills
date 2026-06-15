@@ -1,68 +1,58 @@
-# Always-on hosted dashboard (Supabase + Vercel)
+# Always-on hosted dashboard (Vercel)
 
 See the bot from anywhere — phone, laptop — whether it's running the demo or
-trading live on the Mac mini. The bot pushes its state to **Supabase**; a
-static dashboard on **Vercel** reads it.
+trading live on the Mac mini. Everything is on **Vercel** (no other database).
 
 ```
- Mac mini bot ──(service key, write)──▶  Supabase  ◀──(anon key, read)── Vercel dashboard ──▶ your phone
-   demo OR live                         bot_snapshot                       (always on)
+ Mac mini bot ──POST snapshot (Bearer token)──▶  Vercel /api/ingest ──▶ Vercel KV
+   demo OR live                                                            │
+ your phone ◀── dashboard ◀── /api/state (read-only) ◀─────────────────────┘
 ```
 
 Only the **public, non-sensitive snapshot** (PnL, opportunities, trades, fill
 report) is synced. **No wallet key or secret ever leaves the Mac mini.**
 
+The whole app lives in [`frontend/`](frontend/): the static dashboard plus two
+serverless functions, `api/ingest.js` (write, token-protected) and
+`api/state.js` (read-only).
+
 ---
 
-## 1. Supabase (one time)
+## 1. Deploy to Vercel (one time)
 
-1. In your Supabase project, open **SQL Editor** and run
-   [`deploy/supabase_schema.sql`](deploy/supabase_schema.sql). It creates the
-   `bot_snapshot` table with read-only public access.
-2. From **Project Settings → API**, copy three values:
-   - **Project URL** → `https://<ref>.supabase.co`
-   - **anon / publishable key** (public, read-only) → for the dashboard
-   - **service_role key** (secret, write) → for the Mac mini only
+Easiest is the GitHub integration:
 
-## 2. Mac mini bot — enable sync
+1. Push this repo to your GitHub (already done if you're on the PR branch).
+2. In Vercel → **Add New → Project**, import the repo, and set
+   **Root Directory = `polymarket-arb/frontend`**. Deploy.
+3. In the new project → **Storage → Create Database → KV**, and connect it to
+   the project (Vercel auto-adds the `KV_*` env vars).
+4. In **Settings → Environment Variables**, add:
+   - `INGEST_TOKEN` = a long random secret you make up (e.g. `openssl rand -hex 24`).
+5. **Redeploy** so the env vars take effect.
 
-Add to the Mac mini's `.env` (service key stays here, never committed):
+You now have a permanent URL like `https://your-bot.vercel.app`.
+
+## 2. Point the Mac mini at it
+
+Add to the Mac mini's `.env` (the token must match Vercel's `INGEST_TOKEN`):
 
 ```ini
-PM_SUPABASE_URL=https://<ref>.supabase.co
-PM_SUPABASE_SERVICE_KEY=<service_role key>
+PM_CLOUD_INGEST_URL=https://your-bot.vercel.app/api/ingest
+PM_CLOUD_INGEST_TOKEN=<the same secret you set in Vercel>
 PM_CLOUD_SYNC_INTERVAL=5.0
 ```
 
-Restart (`make install`). The bot now upserts its snapshot every ~5s.
-
-## 3. Vercel dashboard
-
-The dashboard is just the static files in `frontend/`. Point it at Supabase by
-setting `frontend/config.js` (the anon key is public/read-only — safe to ship):
-
-```js
-window.SUPABASE_CONFIG = {
-  url: "https://<ref>.supabase.co",
-  key: "<anon / publishable key>",
-};
-```
-
-Then deploy the `frontend/` directory to Vercel (drag-and-drop in the Vercel
-dashboard, `vercel deploy ./frontend`, or the Vercel GitHub integration with
-**Root Directory = `polymarket-arb/frontend`**). You'll get a permanent URL like
-`https://your-bot.vercel.app` that shows the Mac mini's live state from
-anywhere, demo or live.
+Restart (`make install`). The bot now pushes its snapshot every ~5s, and your
+Vercel URL shows the Mac mini's live state from anywhere — demo or live.
 
 ---
 
 ## Security notes
 
-- The **anon key is read-only** by design (RLS allows only `SELECT` on
-  `bot_snapshot`). Embedding it in the static site is the intended Supabase
-  pattern.
-- The **service key** (write) lives only in the Mac mini `.env`.
-- The dashboard URL is public unless you add Vercel password protection
-  (Project → Settings → Deployment Protection). The data is non-sensitive
-  (no keys, just PnL/opportunities), but enable it if you'd rather keep your
-  numbers private.
+- `/api/ingest` only accepts writes with the correct `INGEST_TOKEN` (kept on the
+  Mac mini and in Vercel's env, never in the repo).
+- `/api/state` is read-only and serves only the public snapshot.
+- The dashboard URL is public unless you enable Vercel **Deployment Protection**
+  (Settings → Deployment Protection). The data is non-sensitive (no keys, just
+  PnL/opportunities), but turn it on if you'd rather keep your numbers private.

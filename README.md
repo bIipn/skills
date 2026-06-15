@@ -28,7 +28,7 @@ not predict outcomes or take directional risk; it locks in math.
 | 💸 **Kelly sizing** | Fractional Kelly + book-depth caps |
 | ⚡ **Real-time data** | Streaming CLOB WebSocket book cache, with REST fallback |
 | 🧪 **Backtesting** | Deterministic replay → equity curve, win rate, max drawdown, per-strategy PnL |
-| 📊 **Live dashboard** | Apple-HIG web UI: equity curve, opportunities, fill-rate report, per-strategy breakdown — runs locally or hosted (Supabase + Vercel) for anywhere access |
+| 📊 **Live dashboard** | Apple-HIG web UI: equity curve, opportunities, fill-rate report, per-strategy breakdown — runs locally or hosted on Vercel for anywhere access |
 | 🔔 **Alerts** | Telegram push on fills, errors, and startup |
 | 🖥️ **24/7 deploy** | One-command macOS (launchd) install + Docker |
 
@@ -56,7 +56,7 @@ Everything lives in **[`polymarket-arb/`](polymarket-arb/)**:
 - **[README](polymarket-arb/README.md)** — architecture, strategies, full reference
 - **[COWORKER_SETUP.md](polymarket-arb/COWORKER_SETUP.md)** — no-secrets, demo-first setup anyone can follow
 - **[SETUP_LIVE.md](polymarket-arb/SETUP_LIVE.md)** — Mac mini 24/7, burner wallet, going live
-- **[SETUP_CLOUD.md](polymarket-arb/SETUP_CLOUD.md)** — always-on hosted dashboard (Supabase + Vercel)
+- **[SETUP_CLOUD.md](polymarket-arb/SETUP_CLOUD.md)** — always-on hosted dashboard (Vercel)
 
 ## ⚠️ Disclaimer
 
