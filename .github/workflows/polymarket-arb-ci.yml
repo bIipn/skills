@@ -1,0 +1,33 @@
+name: polymarket-arb CI
+
+on:
+  push:
+    paths:
+      - "polymarket-arb/**"
+      - ".github/workflows/polymarket-arb-ci.yml"
+  pull_request:
+    paths:
+      - "polymarket-arb/**"
+      - ".github/workflows/polymarket-arb-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: polymarket-arb
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Smoke-test backtest
+        run: python run.py --backtest --ticks 100 --seed 1

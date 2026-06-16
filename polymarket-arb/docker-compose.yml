@@ -1,0 +1,16 @@
+services:
+  arb-bot:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # Safe defaults. Set PM_DATA_MODE=live for real (read-only) order books.
+      # Live execution additionally needs PM_EXECUTION_MODE=live + credentials.
+      PM_DATA_MODE: paper
+      PM_EXECUTION_MODE: paper
+      PM_BANKROLL: "10000"
+    volumes:
+      - arb-data:/data
+
+volumes:
+  arb-data:
