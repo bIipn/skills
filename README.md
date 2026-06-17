@@ -28,6 +28,7 @@ not predict outcomes or take directional risk; it locks in math.
 | 🌐 **Multi-venue** | Kalshi adapter (U.S.-regulated venue) + cross-venue detector — the least-contested edge for a small operator |
 | 🧠 **AI dependency detection** | Classifies dependent market pairs into feasible joint outcomes (offline heuristics, or Claude when configured) |
 | 📐 **3-layer optimizer** | Bregman projection via Frank-Wolfe; depth-aware, multi-level VWAP sizing validated against the live book |
+| 🔮 **Fill forecasting** | TimesFM 2.5 (or heuristic) predicts whether a spread stays open long enough to fill both legs — an execution-risk score, not a market predictor |
 | 💸 **Kelly sizing** | Fractional Kelly + book-depth caps |
 | ⚡ **Real-time data** | Streaming CLOB WebSocket book cache, with REST fallback |
 | 🧪 **Backtesting** | Deterministic replay → equity curve, win rate, max drawdown, per-strategy PnL |

@@ -114,6 +114,15 @@ class Settings:
     kalshi_private_key: str = field(
         default_factory=lambda: os.getenv("PM_KALSHI_PRIVATE_KEY", ""))
 
+    # ---- Execution-risk forecasting (TimesFM) -------------------------
+    # Predict whether a spread stays open long enough to fill both legs.
+    use_timesfm: bool = field(default_factory=lambda: _get_bool("PM_USE_TIMESFM", False))
+    forecast_horizon: float = field(
+        default_factory=lambda: _get_float("PM_FORECAST_HORIZON", 6))
+    # Skip opportunities whose predicted fill score is below this (0 = off).
+    min_fill_score: float = field(
+        default_factory=lambda: _get_float("PM_MIN_FILL_SCORE", 0.0))
+
     # Use the real-time CLOB WebSocket book cache in live mode (else REST poll).
     use_ws: bool = field(default_factory=lambda: _get_bool("PM_USE_WS", True))
     # Max age (s) a cached WS book may be before falling back to REST.

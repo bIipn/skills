@@ -95,6 +95,9 @@ class Opportunity:
     # 3-layer optimizer telemetry (filled by the Bregman/Frank-Wolfe layer).
     bregman: float = 0.0      # Bregman divergence == max per-unit extractable profit
     fw_iters: int = 0         # Frank-Wolfe iterations to converge
+    # Execution-risk score in [0,1]: predicted chance the spread stays open long
+    # enough to fill both legs (TimesFM or heuristic). 1.0 = no forecast/neutral.
+    fill_score: float = 1.0
 
     def to_dict(self) -> dict:
         return {
@@ -109,6 +112,7 @@ class Opportunity:
             "confidence": round(self.confidence, 3),
             "bregman": round(self.bregman, 4),
             "fw_iters": self.fw_iters,
+            "fill_score": round(self.fill_score, 3),
             "detected_at": self.detected_at,
         }
 
