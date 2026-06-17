@@ -26,11 +26,37 @@ function render(s) {
   em.textContent = "EXEC: " + (s.execution_live ? "LIVE" : "PAPER");
   em.className = "pill " + (s.execution_live ? "live" : "paper");
 
+  renderMM(s.market_making, s.mode);
   renderFillReport(s.fill_report);
   renderStrategies(s.by_strategy);
   renderOpps(s.live_opportunities);
   renderTrades(s.recent_trades);
   drawChart(s.equity_curve, s.starting_bankroll);
+}
+
+function renderMM(mm, mode) {
+  const card = $("mm-card");
+  if (!mm || (mode !== "market_making" && mm.quotes_posted === 0)) {
+    if (card) card.style.display = "none";
+    return;
+  }
+  card.style.display = "";
+  const cells = [
+    ["NET P/L", fmt(mm.net_pnl), mm.net_pnl >= 0 ? "pos" : "neg"],
+    ["REWARDS", fmt(mm.rewards), "pos"],
+    ["SPREAD CAPTURE", fmt(mm.spread_pnl), mm.spread_pnl >= 0 ? "pos" : "neg"],
+    ["INVENTORY P/L", fmt(mm.inventory_pnl), mm.inventory_pnl >= 0 ? "pos" : "neg"],
+    ["QUOTES POSTED", mm.quotes_posted, ""],
+    ["FILLS", mm.fills, ""],
+    ["OPEN INVENTORY", mm.open_inventory + " sh", ""],
+    ["MARKETS QUOTED", mm.markets_quoted, ""],
+  ];
+  $("mm").innerHTML =
+    `<div class="strat-grid" style="grid-template-columns:repeat(4,1fr)">` +
+    cells.map(([l, v, c]) =>
+      `<div class="strat-cell"><div class="kpi-lbl">${l}</div>
+         <div class="strat-pnl ${c}">${v}</div></div>`).join("") +
+    `</div><div class="muted small" style="margin-top:8px">Market-making earns the liquidity reward + spread without racing for fills — the realistic edge on a regulated venue. Risk is inventory; quoting is capped at ${"" }the inventory limit. (Reward figures are a simulation of Kalshi's program in demo mode.)</div>`;
 }
 
 function renderFillReport(r) {

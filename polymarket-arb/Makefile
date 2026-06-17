@@ -33,6 +33,10 @@ paper:
 kalshi:
 	PM_VENUE=kalshi PM_DATA_MODE=live PM_EXECUTION_MODE=paper $(PY) run.py
 
+# Market-making demo on Kalshi: quote both sides, earn rewards + spread.
+market-make:
+	PM_VENUE=kalshi PM_MARKET_MAKING=1 PM_DATA_MODE=live PM_EXECUTION_MODE=paper $(PY) run.py
+
 run:
 	$(PY) run.py
 

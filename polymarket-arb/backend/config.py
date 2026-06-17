@@ -88,6 +88,21 @@ class Settings:
     # Primary venue when not in cross-venue mode: "polymarket" | "kalshi".
     venue: str = field(default_factory=lambda: os.getenv("PM_VENUE", "polymarket"))
 
+    # ---- Market-making mode (Kalshi liquidity rewards) ----------------
+    # Quote both sides of markets to earn maker rewards + capture the spread,
+    # instead of hunting arbitrage. The realistic, non-latency-racing edge.
+    market_making: bool = field(
+        default_factory=lambda: _get_bool("PM_MARKET_MAKING", False))
+    mm_spread: float = field(default_factory=lambda: _get_float("PM_MM_SPREAD", 0.02))
+    mm_size: float = field(default_factory=lambda: _get_float("PM_MM_SIZE", 100))
+    mm_max_inventory: float = field(
+        default_factory=lambda: _get_float("PM_MM_MAX_INVENTORY", 500))
+    # Simulated reward per share quoted per tick (proxy for Kalshi's program).
+    mm_reward_rate: float = field(
+        default_factory=lambda: _get_float("PM_MM_REWARD_RATE", 0.0002))
+    mm_fill_prob: float = field(
+        default_factory=lambda: _get_float("PM_MM_FILL_PROB", 0.15))
+
     # Scan loop interval in seconds (paper mode tick rate).
     scan_interval_s: float = field(
         default_factory=lambda: _get_float("PM_SCAN_INTERVAL", 2.0)
