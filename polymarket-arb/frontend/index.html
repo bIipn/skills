@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CLAUDE × QUANT — Polymarket Arbitrage</title>
+<title>CLAUDE × QUANT — Polymarket/Kalshi Arbitrage</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 <header class="topbar">
   <div class="brand">CLAUDE <span class="x">×</span> QUANT</div>
+  <div id="substats" class="substats"></div>
   <div class="modes">
     <span id="data-mode" class="pill">DATA: …</span>
     <span id="exec-mode" class="pill">EXEC: …</span>
@@ -17,78 +18,98 @@
 </header>
 
 <main class="grid">
-  <!-- PnL hero -->
+  <!-- Row 1: PnL hero · decision stats · candlesticks -->
   <section class="card hero">
     <div class="label">Portfolio Equity</div>
-    <div id="equity" class="big" role="status" aria-live="polite"
-         aria-label="Portfolio equity">$0</div>
+    <div id="equity" class="big" role="status" aria-live="polite" aria-label="Portfolio equity">$0</div>
     <div class="subrow">
       <span id="pnl" class="pnl" aria-label="Realized profit">+$0 (0.00%)</span>
-      <span class="muted">realized arb profit</span>
+      <span class="muted">realized P/L</span>
     </div>
-    <canvas id="chart" height="160" role="img"
-            aria-label="Equity curve over time"></canvas>
+    <canvas id="chart" height="120" role="img" aria-label="Equity curve"></canvas>
   </section>
 
-  <!-- KPI tiles -->
-  <section class="card kpis">
-    <div class="kpi"><div class="kpi-val" id="k-trades">0</div><div class="kpi-lbl">TRADES</div></div>
-    <div class="kpi"><div class="kpi-val" id="k-winrate">0%</div><div class="kpi-lbl">WIN RATE</div></div>
-    <div class="kpi"><div class="kpi-val" id="k-avg">$0</div><div class="kpi-lbl">AVG / TRADE</div></div>
-    <div class="kpi"><div class="kpi-val" id="k-opps">0</div><div class="kpi-lbl">OPPS FOUND</div></div>
-    <div class="kpi"><div class="kpi-val" id="k-scan">0ms</div><div class="kpi-lbl">SCAN TIME</div></div>
-    <div class="kpi"><div class="kpi-val" id="k-markets">0</div><div class="kpi-lbl">MARKETS</div></div>
+  <section class="card stats-card">
+    <div class="card-head">SIGNAL STATS</div>
+    <div class="stat-grid">
+      <div class="stat"><div class="stat-v" id="k-trades">0</div><div class="stat-l">TRADES</div></div>
+      <div class="stat"><div class="stat-v pos" id="k-winrate">0%</div><div class="stat-l">FILL RATE</div></div>
+      <div class="stat"><div class="stat-v" id="k-avg">$0</div><div class="stat-l">AVG/TRADE</div></div>
+      <div class="stat"><div class="stat-v" id="k-opps">0</div><div class="stat-l">SIGNALS</div></div>
+      <div class="stat"><div class="stat-v" id="k-scan">0ms</div><div class="stat-l">SCAN</div></div>
+      <div class="stat"><div class="stat-v" id="k-markets">0</div><div class="stat-l">MARKETS</div></div>
+    </div>
   </section>
 
-  <!-- Market-making mode (Kalshi liquidity rewards) -->
+  <section class="card">
+    <div class="card-head">EQUITY CANDLES <span class="muted" id="cdl-val"></span></div>
+    <canvas id="candles" height="150" role="img" aria-label="Equity candlesticks"></canvas>
+  </section>
+
+  <!-- Row 2: execution cycle -->
+  <section class="card wide">
+    <div class="card-head">EXECUTION CYCLE <span class="muted" id="cyc-lat"></span></div>
+    <div id="exec-cycle" class="cycle"></div>
+  </section>
+
+  <!-- Row 3: strategy decision tree -->
+  <section class="card wide">
+    <div class="card-head">STRATEGY DECISION TREE — SMART TRADE TRACKER</div>
+    <canvas id="dtree" height="240" role="img" aria-label="Strategy decision tree"></canvas>
+  </section>
+
+  <!-- Row 4: orderbook heatmap · equity area -->
+  <section class="card col2">
+    <div class="card-head">ORDERBOOK / FILL HEATMAP <span class="muted" id="hm-fill"></span></div>
+    <div id="heatmap" class="heatmap"></div>
+  </section>
+  <section class="card">
+    <div class="card-head">P/L CURVE <span class="muted" id="curve-val"></span></div>
+    <canvas id="curve" height="150" role="img" aria-label="P/L curve"></canvas>
+  </section>
+
+  <!-- Market-making (shown only in MM mode) -->
   <section class="card wide" id="mm-card" style="display:none">
     <div class="card-head">MARKET-MAKING — Kalshi liquidity rewards + spread</div>
     <div id="mm"></div>
   </section>
 
-  <!-- Fill-rate report (demo decision metric) -->
+  <!-- Route table -->
   <section class="card wide">
-    <div class="card-head">FILL-RATE REPORT — would these have actually filled?</div>
-    <div id="fillreport"></div>
-  </section>
-
-  <!-- Strategy breakdown -->
-  <section class="card wide">
-    <div class="card-head">STRATEGY DECISION TREE — PnL BY STRATEGY</div>
-    <div id="strategies" class="strat-grid"></div>
-  </section>
-
-  <!-- Live opportunities -->
-  <section class="card wide">
-    <div class="card-head">LIVE ARBITRAGE OPPORTUNITIES <span class="muted" id="opp-count"></span></div>
+    <div class="card-head">ROUTE TABLE — live signals <span class="muted" id="opp-count"></span></div>
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>KIND</th><th>MARKET</th><th>COST</th><th>FLOOR</th>
-          <th>PROFIT</th><th>EDGE</th><th>FILL</th><th>BREGMAN</th><th>FW</th><th>CONF</th>
+          <th>KIND</th><th>ROUTE</th><th>MARKET</th><th>COST</th><th>FLOOR</th>
+          <th>PROFIT</th><th>EDGE</th><th>FILL</th><th>BREG</th><th>CONF</th>
         </tr></thead>
         <tbody id="opps"></tbody>
       </table>
     </div>
   </section>
 
+  <!-- Fill report + strategy breakdown -->
+  <section class="card wide">
+    <div class="card-head">FILL-RATE REPORT — would these have actually filled?</div>
+    <div id="fillreport"></div>
+  </section>
+  <section class="card wide">
+    <div class="card-head">PnL BY STRATEGY</div>
+    <div id="strategies" class="strat-grid"></div>
+  </section>
+
   <!-- Backtest -->
   <section class="card wide">
-    <div class="card-head">
-      BACKTEST HARNESS
-      <button id="bt-run" class="btn">▶ RUN 500-TICK BACKTEST</button>
-    </div>
+    <div class="card-head">BACKTEST HARNESS <button id="bt-run" class="btn">▶ RUN 500-TICK BACKTEST</button></div>
     <div id="backtest" class="muted">Run a deterministic replay to evaluate the strategy.</div>
   </section>
 
-  <!-- Trade feed -->
+  <!-- Execution log -->
   <section class="card wide">
     <div class="card-head">EXECUTION LOG</div>
     <div class="table-wrap">
       <table>
-        <thead><tr>
-          <th>MARKET</th><th>KIND</th><th>COST</th><th>P/L</th><th>STATUS</th>
-        </tr></thead>
+        <thead><tr><th>MARKET</th><th>KIND</th><th>COST</th><th>P/L</th><th>STATUS</th></tr></thead>
         <tbody id="trades"></tbody>
       </table>
     </div>
@@ -96,7 +117,7 @@
 </main>
 
 <footer class="foot">
-  Paper-trading simulation by default. Detection is real; no funds move unless live execution is explicitly enabled.
+  Paper-trading simulation by default — competition-adjusted. No funds move unless live execution is explicitly enabled.
   Strategy basis: arXiv:2508.03474 · arXiv:1606.02825
 </footer>
 
