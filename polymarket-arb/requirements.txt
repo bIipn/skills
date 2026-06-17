@@ -8,4 +8,8 @@ pytest>=8.0
 # Optional: enables the LLM-backed dependency classifier (ClaudeClassifier).
 # The bot runs fully without it using the offline HeuristicClassifier.
 anthropic>=0.40
+# Optional: TimesFM 2.5 for execution-risk (fill-probability) forecasting.
+# The bot runs fully without it using the heuristic forecaster.
+# timesfm>=2.5
+
 

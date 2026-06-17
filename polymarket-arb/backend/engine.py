@@ -22,6 +22,7 @@ from .config import settings
 from .cross_venue import scan_cross_venue
 from .dependencies import make_classifier, scan_combinatorial
 from .execution import make_executor
+from .forecast import make_forecaster
 from .kalshi_client import make_multi_venue_feed
 from .models import Market, Opportunity, TradeResult
 from .notifier import format_trade, make_notifier
@@ -66,6 +67,7 @@ class ArbEngine:
         self.feed = make_multi_venue_feed() if settings.cross_venue else make_feed()
         self.executor = make_executor()
         self.classifier = make_classifier()
+        self.forecaster = make_forecaster()
         self.store = make_store()
         self.notifier = make_notifier()
         self.cloud = make_cloud_sync()
@@ -94,12 +96,16 @@ class ArbEngine:
     async def tick(self) -> list[TradeResult]:
         t0 = time.perf_counter()
         markets: list[Market] = await self.feed.snapshot()
+        self.forecaster.observe(markets)  # update price history for fill scoring
         opps = scan_markets(markets)
         # Layer 2: combinatorial arbitrage across logically dependent markets.
         opps.extend(scan_combinatorial(markets, self.classifier))
         # Cross-venue arbitrage (same event on Polymarket vs Kalshi).
         if settings.cross_venue:
             opps.extend(scan_cross_venue(markets))
+        # Execution-risk score: will the spread stay open long enough to fill?
+        for o in opps:
+            o.fill_score = self.forecaster.score(o)
         opps.sort(key=lambda o: o.profit, reverse=True)
         self.state.last_scan_ms = (time.perf_counter() - t0) * 1000.0
         self.state.markets_scanned = len(markets)
@@ -109,6 +115,9 @@ class ArbEngine:
 
         results: list[TradeResult] = []
         for opp in opps:
+            # Skip arbs predicted to vanish before both legs fill.
+            if settings.min_fill_score > 0 and opp.fill_score < settings.min_fill_score:
+                continue
             # Don't execute if we can't afford the outlay.
             if opp.cost > self.state.bankroll:
                 self.state.opportunities_skipped += 1

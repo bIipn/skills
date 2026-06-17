@@ -81,10 +81,12 @@ function renderOpps(opps) {
       <td>${fmt(o.guaranteed_payoff)}</td>
       <td class="pos">+${fmt(o.profit)}</td>
       <td class="pos">${o.edge_pct}%</td>
+      <td class="${(o.fill_score ?? 1) >= 0.7 ? "pos" : ((o.fill_score ?? 1) >= 0.45 ? "" : "neg")}"
+          title="Predicted fill score (TimesFM/heuristic): will the spread stay open to fill both legs?">${Math.round((o.fill_score ?? 1) * 100)}%</td>
       <td title="Bregman divergence = max extractable profit/unit">${o.bregman}</td>
       <td title="Frank-Wolfe iterations to converge">${o.fw_iters}</td>
       <td>${(o.confidence * 100).toFixed(0)}%</td>
-    </tr>`).join("") || `<tr><td colspan="9" class="muted">scanning…</td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="10" class="muted">scanning…</td></tr>`;
 }
 
 function renderTrades(trades) {
