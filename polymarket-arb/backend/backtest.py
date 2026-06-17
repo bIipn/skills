@@ -59,9 +59,9 @@ class BacktestReport:
 
 
 async def _run(ticks: int, seed: int) -> BacktestReport:
-    feed = PaperFeed(seed=seed)
+    feed = PaperFeed(seed=seed, venue=settings.venue)
     if settings.cross_venue:
-        feed = MultiVenueFeed(feed, live=False, seed=seed)
+        feed = MultiVenueFeed(PaperFeed(seed=seed), live=False, seed=seed)
     executor = PaperExecutor(seed=seed)
     classifier = HeuristicClassifier()
 

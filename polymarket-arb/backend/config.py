@@ -79,6 +79,14 @@ class Settings:
     # net (0 = off, default). Lets you see partial-fill handling in paper mode.
     simulate_partial: float = field(
         default_factory=lambda: _get_float("PM_SIMULATE_PARTIAL", 0.0))
+    # Competition: fraction of arbs a faster trader snipes before your order
+    # lands. Scaled per strategy (single-condition most contested). Makes the
+    # simulated fill rate realistic instead of assuming you win every race.
+    competition: float = field(
+        default_factory=lambda: _get_float("PM_COMPETITION", 0.6))
+
+    # Primary venue when not in cross-venue mode: "polymarket" | "kalshi".
+    venue: str = field(default_factory=lambda: os.getenv("PM_VENUE", "polymarket"))
 
     # Scan loop interval in seconds (paper mode tick rate).
     scan_interval_s: float = field(

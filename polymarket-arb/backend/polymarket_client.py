@@ -59,8 +59,9 @@ def _book(best: float, size: float, levels: int = 4) -> BookSide:
 class PaperFeed:
     """Synthetic market generator with periodic real arbitrage injection."""
 
-    def __init__(self, seed: int | None = None):
+    def __init__(self, seed: int | None = None, venue: str = "polymarket"):
         self.rng = random.Random(seed)
+        self.venue = venue
         self._tick = 0
 
     async def snapshot(self) -> list[Market]:
@@ -91,7 +92,8 @@ class PaperFeed:
             )
             markets.append(Market(
                 condition_id=f"cond-{i}", question=q, outcomes=[yes, no],
-                mutually_exclusive=False, category=cat, updated_at=time.time(),
+                mutually_exclusive=False, category=cat, venue=self.venue,
+                updated_at=time.time(),
             ))
 
         # Mutually-exclusive groups (rebalance candidates).
@@ -111,7 +113,8 @@ class PaperFeed:
                 ))
             markets.append(Market(
                 condition_id=f"group-{gi}", question=q, outcomes=outcomes,
-                mutually_exclusive=True, category="election", updated_at=time.time(),
+                mutually_exclusive=True, category="election", venue=self.venue,
+                updated_at=time.time(),
             ))
 
         # Logically dependent pair: B ("...by 5+ points") implies A.
@@ -127,7 +130,8 @@ class PaperFeed:
         depth = self.rng.uniform(300, 1200)
         markets.append(Market(
             condition_id="dep-A", question="Will Republicans win Pennsylvania?",
-            mutually_exclusive=False, category="election", updated_at=time.time(),
+            mutually_exclusive=False, category="election", venue=self.venue,
+            updated_at=time.time(),
             outcomes=[
                 Outcome("dep-A-YES", "YES", _book(a_yes_ask, depth),
                         _book(max(a_yes_ask - 0.02, 0.001), depth)),
@@ -138,7 +142,8 @@ class PaperFeed:
         markets.append(Market(
             condition_id="dep-B",
             question="Will Republicans win Pennsylvania by 5+ points?",
-            mutually_exclusive=False, category="election", updated_at=time.time(),
+            mutually_exclusive=False, category="election", venue=self.venue,
+            updated_at=time.time(),
             outcomes=[
                 Outcome("dep-B-YES", "YES", _book(b_yes_ask, depth),
                         _book(max(b_yes_ask - 0.02, 0.001), depth)),

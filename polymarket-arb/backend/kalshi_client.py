@@ -146,5 +146,13 @@ class MultiVenueFeed:
         return list(markets) + twins
 
 
+def make_kalshi_feed() -> MarketFeed:
+    """Kalshi-only feed: real Kalshi markets live, or venue-tagged paper."""
+    if settings.data_mode == "live":
+        return KalshiLiveFeed()
+    from .polymarket_client import PaperFeed
+    return PaperFeed(venue="kalshi")
+
+
 def make_multi_venue_feed() -> MarketFeed:
     return MultiVenueFeed(make_feed(), live=(settings.data_mode == "live"))
