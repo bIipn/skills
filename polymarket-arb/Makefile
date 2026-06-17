@@ -28,6 +28,11 @@ backtest:
 paper:
 	PM_DATA_MODE=live PM_EXECUTION_MODE=paper $(PY) run.py
 
+# Kalshi-only demo (the venue you can legally trade): real Kalshi prices,
+# simulated fills, no credentials.
+kalshi:
+	PM_VENUE=kalshi PM_DATA_MODE=live PM_EXECUTION_MODE=paper $(PY) run.py
+
 run:
 	$(PY) run.py
 

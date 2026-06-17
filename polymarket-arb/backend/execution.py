@@ -44,7 +44,24 @@ class PaperExecutor:
         self.slip_prob = slip_prob
         self.rng = random.Random(seed)
 
+    # How contested each strategy is by faster traders (1.0 = most contested).
+    _CONTEST = {
+        "single_condition": 1.0,   # obvious, liquid — pro bots race for these
+        "rebalance": 0.7,
+        "combinatorial": 0.35,     # computation, not microseconds — less contested
+        "cross_venue": 0.35,
+    }
+
     def execute(self, opp: Opportunity) -> TradeResult:
+        # Competition: a faster trader may snipe the arb before our order lands.
+        contest = settings.competition * self._CONTEST.get(opp.kind, 0.6)
+        if self.rng.random() < min(0.97, contest):
+            return TradeResult(
+                opportunity=opp, fills=[], realized_cost=0.0, realized_profit=0.0,
+                success=False,
+                note="missed — a faster trader filled this before our order landed",
+            )
+
         # Optionally simulate a counterpart leg failing to fill.
         if len(opp.legs) >= 2 and self.rng.random() < settings.simulate_partial:
             return self._simulate_partial(opp)
@@ -248,10 +265,10 @@ class RoutedExecutor:
 
 
 def make_executor():
-    # Multi-venue live → route per leg; single-venue live → Polymarket; else paper.
-    if settings.cross_venue and (
-        settings.live_execution_enabled or settings.kalshi_live_execution_enabled
-    ):
+    # Route per leg when multi-venue OR Kalshi-only live; Polymarket-only live →
+    # LiveExecutor; otherwise the simulated paper executor.
+    live_any = settings.live_execution_enabled or settings.kalshi_live_execution_enabled
+    if live_any and (settings.cross_venue or settings.venue == "kalshi"):
         return RoutedExecutor()
     if settings.live_execution_enabled:
         return LiveExecutor()

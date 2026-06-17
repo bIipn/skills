@@ -2,7 +2,14 @@
 
 This is your Polymarket/Kalshi arbitrage bot. Follow these steps when you sit
 down at the Mac mini. **The demo needs no wallet, no keys, and no money** — it
-trades real market prices with fake money so you can see how it does first.
+trades real market prices with fake money so you can see how it does first. The
+demo now **factors in the faster pro traders** who beat you to fills, so the
+numbers are realistic rather than rosy.
+
+> 💡 **Don't have Claude Code installed?** No problem — you can run the whole
+> demo from the Terminal with no Claude Code at all. See
+> **[polymarket-arb/INSTALL_AND_RUN.md](polymarket-arb/INSTALL_AND_RUN.md)** for
+> both paths (Terminal-only, or installing Claude Code to talk to it).
 
 ---
 

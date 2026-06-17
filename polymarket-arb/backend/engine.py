@@ -23,7 +23,7 @@ from .cross_venue import scan_cross_venue
 from .dependencies import make_classifier, scan_combinatorial
 from .execution import make_executor
 from .forecast import make_forecaster
-from .kalshi_client import make_multi_venue_feed
+from .kalshi_client import make_kalshi_feed, make_multi_venue_feed
 from .models import Market, Opportunity, TradeResult
 from .notifier import format_trade, make_notifier
 from .polymarket_client import make_feed
@@ -64,7 +64,7 @@ class EngineState:
 
 class ArbEngine:
     def __init__(self):
-        self.feed = make_multi_venue_feed() if settings.cross_venue else make_feed()
+        self.feed = _select_feed()
         self.executor = make_executor()
         self.classifier = make_classifier()
         self.forecaster = make_forecaster()
@@ -219,6 +219,14 @@ class ArbEngine:
             "opportunities_found": s.opportunities_found,
             "by_strategy": per,
         }
+
+
+def _select_feed():
+    if settings.cross_venue:
+        return make_multi_venue_feed()
+    if settings.venue == "kalshi":
+        return make_kalshi_feed()
+    return make_feed()
 
 
 engine = ArbEngine()

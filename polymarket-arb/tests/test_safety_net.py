@@ -17,6 +17,7 @@ def _legs():
 
 
 def test_paper_partial_fill_unwinds(monkeypatch):
+    monkeypatch.setattr(settings, "competition", 0.0)       # isolate the partial path
     monkeypatch.setattr(settings, "simulate_partial", 1.0)  # force a partial fill
     res = PaperExecutor(seed=1).execute(_opp(_legs()))
     assert res.success is False
@@ -27,6 +28,7 @@ def test_paper_partial_fill_unwinds(monkeypatch):
 
 
 def test_paper_normal_when_partial_disabled(monkeypatch):
+    monkeypatch.setattr(settings, "competition", 0.0)
     monkeypatch.setattr(settings, "simulate_partial", 0.0)
     res = PaperExecutor(seed=1).execute(_opp(_legs()))
     assert "PARTIAL FILL" not in res.note
