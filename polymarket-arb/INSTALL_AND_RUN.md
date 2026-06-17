@@ -90,6 +90,15 @@ You said Kalshi is the only venue you can legally use. Run the bot Kalshi-only:
 # Kalshi demo on real Kalshi prices, still fake money:
 PM_VENUE=kalshi PM_DATA_MODE=live PM_EXECUTION_MODE=paper make run
 ```
+**Market-making (your most realistic Kalshi edge).** Instead of racing for
+arbs, quote both sides of markets to earn Kalshi's liquidity rewards + the
+spread — no latency race required:
+```bash
+make market-make      # Kalshi market-making demo (rewards + spread, fake money)
+```
+Watch the **Market-Making** panel on the dashboard (net P/L = rewards + spread −
+inventory). For a regulated venue this is usually a steadier edge than arbitrage.
+
 Going live with real money on Kalshi is documented in
 [`SETUP_LIVE.md`](SETUP_LIVE.md) (§5b) — burner funds, your Kalshi API key, and
 the safety checks. **Honest heads-up:** Kalshi is a regulated, fairly efficient

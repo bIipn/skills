@@ -24,6 +24,7 @@ from .dependencies import make_classifier, scan_combinatorial
 from .execution import make_executor
 from .forecast import make_forecaster
 from .kalshi_client import make_kalshi_feed, make_multi_venue_feed
+from .market_maker import make_market_maker
 from .models import Market, Opportunity, TradeResult
 from .notifier import format_trade, make_notifier
 from .polymarket_client import make_feed
@@ -68,6 +69,7 @@ class ArbEngine:
         self.executor = make_executor()
         self.classifier = make_classifier()
         self.forecaster = make_forecaster()
+        self.mm = make_market_maker()
         self.store = make_store()
         self.notifier = make_notifier()
         self.cloud = make_cloud_sync()
@@ -96,6 +98,8 @@ class ArbEngine:
     async def tick(self) -> list[TradeResult]:
         t0 = time.perf_counter()
         markets: list[Market] = await self.feed.snapshot()
+        if settings.market_making:
+            return self._mm_tick(markets, t0)
         self.forecaster.observe(markets)  # update price history for fill scoring
         opps = scan_markets(markets)
         # Layer 2: combinatorial arbitrage across logically dependent markets.
@@ -192,7 +196,23 @@ class ArbEngine:
                 for k, v in s.by_strategy.items()
             },
             "fill_report": self._fill_report(),
+            "market_making": self.mm.snapshot(),
+            "mode": "market_making" if settings.market_making else "arbitrage",
         }
+
+    def _mm_tick(self, markets: list[Market], t0: float):
+        """Market-making tick: quote both sides, accrue rewards + spread."""
+        stats = self.mm.step(markets)
+        self.state.last_scan_ms = (time.perf_counter() - t0) * 1000.0
+        self.state.markets_scanned = len(markets)
+        self.state.tick += 1
+        net = stats["tick_pnl"]
+        self.state.realized_pnl += net
+        self.state.bankroll += net
+        self.state.equity_curve.append(
+            {"t": time.time(), "equity": round(self.state.bankroll, 2)})
+        self.cloud.maybe_push(self.snapshot())
+        return []
 
     def _fill_report(self) -> dict:
         """Demo decision metric: of detected opportunities, what fraction would

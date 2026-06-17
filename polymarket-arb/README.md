@@ -28,6 +28,7 @@ sizes the optimal trade, and simulates execution — all visualised on a live
 | Detection | `backend/arbitrage.py` | Three strategy families from the paper (below) |
 | Dependency AI | `backend/dependencies.py` | Classifies logically dependent market pairs into feasible joint outcomes — offline `HeuristicClassifier`, or `ClaudeClassifier` (claude-opus-4-8) when `ANTHROPIC_API_KEY` is set |
 | Optimization | `backend/optimizer.py` | Bregman projection onto the arbitrage-free manifold via **Frank-Wolfe** (conditional gradient) — grows an active set one vertex at a time instead of enumerating 2ⁿ outcomes |
+| Market making | `backend/market_maker.py` | Alternative mode (`PM_MARKET_MAKING=1`): quote both sides near the mid to earn Kalshi **liquidity rewards + spread** without racing for fills. Inventory-capped. The realistic edge on a regulated venue. |
 | Sizing | `backend/kelly.py` | Depth caps (≤50% of book) + fractional Kelly for the risk-adjusted component |
 | Fill forecast | `backend/forecast.py` | Per-opportunity `fill_score` — will the spread stay open long enough to fill both legs? Heuristic, or Google **TimesFM 2.5** (`PM_USE_TIMESFM=1`); skip risky arbs via `PM_MIN_FILL_SCORE`. Forecasts execution conditions, not outcomes. |
 | Execution | `backend/execution.py` | `PaperExecutor` models sequential CLOB fills *with* adverse slippage; gated `LiveExecutor` places real GTC orders via `py-clob-client` |
