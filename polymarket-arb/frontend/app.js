@@ -26,13 +26,195 @@ function render(s) {
   em.textContent = "EXEC: " + (s.execution_live ? "LIVE" : "PAPER");
   em.className = "pill " + (s.execution_live ? "live" : "paper");
 
+  renderSubstats(s);
+  renderCycle(s);
+  drawDecisionTree(s);
+  drawCandles(s.equity_curve);
+  renderHeatmap(s);
   renderMM(s.market_making, s.mode);
   renderFillReport(s.fill_report);
   renderStrategies(s.by_strategy);
   renderOpps(s.live_opportunities);
   renderTrades(s.recent_trades);
-  drawChart(s.equity_curve, s.starting_bankroll);
+  drawChart(s.equity_curve, s.starting_bankroll, "chart");
+  drawChart(s.equity_curve, s.starting_bankroll, "curve");
+  $("curve-val").textContent = fmt(s.bankroll);
 }
+
+// ---- Header sub-stats (the small green ticker row) --------------------
+function renderSubstats(s) {
+  const el = $("substats");
+  if (!el) return;
+  const items = [
+    ["MODE", (s.mode || "arbitrage").toUpperCase().replace("_", " ")],
+    ["EQUITY", fmt(s.bankroll)],
+    ["P/L", (s.realized_pnl >= 0 ? "+" : "") + fmt(s.realized_pnl)],
+    ["FILL", s.win_rate + "%"],
+    ["SIGNALS", s.opportunities_found],
+    ["TICK", s.tick],
+  ];
+  el.innerHTML = items.map(([l, v]) =>
+    `<span class="ss"><span class="ss-l">${l}</span> <span class="ss-v">${v}</span></span>`).join("");
+}
+
+// ---- Execution cycle bar ---------------------------------------------
+const CYCLE_STAGES = ["SCAN", "DETECT", "OPTIMIZE", "SIZE", "EXECUTE", "SETTLE"];
+function renderCycle(s) {
+  const el = $("exec-cycle");
+  if (!el) return;
+  const active = (s.tick || 0) % CYCLE_STAGES.length;
+  el.innerHTML = CYCLE_STAGES.map((name, i) =>
+    `<div class="seg ${i === active ? "on" : (i < active ? "done" : "")}">
+       <span class="seg-i">${i + 1}</span> ${name}</div>`).join("");
+  $("cyc-lat").textContent = (s.last_scan_ms || 0) + "ms · " + CYCLE_STAGES[active];
+}
+
+// ---- Strategy decision tree (canvas node graph) ----------------------
+function drawDecisionTree(s) {
+  const c = $("dtree");
+  if (!c) return;
+  const ctx = c.getContext("2d");
+  const w = c.width = c.clientWidth * devicePixelRatio;
+  const h = c.height = 240 * devicePixelRatio;
+  const P = devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+  ctx.lineWidth = 1.5 * P;
+  ctx.font = `${11 * P}px -apple-system, sans-serif`;
+  ctx.textBaseline = "middle";
+
+  const by = s.by_strategy || {};
+  const fr = s.fill_report || {};
+  const green = "#30d158", dim = "#1e2b3a", txt = "#d7e2ee", mut = "#6b7c91";
+
+  // Node columns: Markets → strategies → Optimize → Size → Execute → Result
+  const root = { x: 0.06 * w, y: h / 2, label: "MARKETS", sub: (s.markets_scanned || 0) + "" };
+  const strats = [
+    ["single_condition", "SINGLE"],
+    ["rebalance", "REBALANCE"],
+    ["combinatorial", "COMBO"],
+    ["cross_venue", "X-VENUE"],
+  ];
+  const sx = 0.28 * w;
+  const stratNodes = strats.map(([k, lbl], i) => ({
+    x: sx, y: (i + 1) * h / (strats.length + 1),
+    label: lbl, sub: (by[k]?.trades || 0) + " tr",
+    val: by[k]?.pnl || 0,
+  }));
+  const opt = { x: 0.52 * w, y: h / 2, label: "OPTIMIZE", sub: "Bregman/FW" };
+  const size = { x: 0.68 * w, y: h / 2, label: "SIZE", sub: "Kelly+depth" };
+  const exec = { x: 0.84 * w, y: h / 2, label: "EXECUTE", sub: (fr.overall_fill_rate ?? 0) + "% fill" };
+  const result = { x: 0.96 * w, y: h / 2, label: fmt(s.realized_pnl || 0),
+                   sub: "P/L", big: true };
+
+  function edge(a, b, col) {
+    ctx.strokeStyle = col || dim;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.bezierCurveTo((a.x + b.x) / 2, a.y, (a.x + b.x) / 2, b.y, b.x, b.y);
+    ctx.stroke();
+  }
+  function node(n, accent) {
+    const rw = (n.big ? 60 : 50) * P, rh = 30 * P;
+    ctx.fillStyle = "#0f1620";
+    ctx.strokeStyle = accent ? green : dim;
+    ctx.lineWidth = 1.5 * P;
+    roundRect(ctx, n.x - rw / 2, n.y - rh / 2, rw, rh, 6 * P);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = accent ? green : txt;
+    ctx.textAlign = "center";
+    ctx.font = `${(n.big ? 12 : 10.5) * P}px -apple-system, sans-serif`;
+    ctx.fillText(n.label, n.x, n.y - 4 * P);
+    ctx.fillStyle = mut;
+    ctx.font = `${8.5 * P}px -apple-system, sans-serif`;
+    ctx.fillText(n.sub, n.x, n.y + 8 * P);
+  }
+
+  stratNodes.forEach(n => edge(root, n, n.val > 0 ? green : dim));
+  stratNodes.forEach(n => edge(n, opt, n.val > 0 ? green : dim));
+  edge(opt, size, green); edge(size, exec, green); edge(exec, result, green);
+  node(root, true);
+  stratNodes.forEach(n => node(n, n.val > 0));
+  node(opt, true); node(size, true); node(exec, true); node(result, true);
+
+  // headline fill % near execute
+  ctx.fillStyle = green;
+  ctx.textAlign = "center";
+  ctx.font = `700 ${18 * P}px -apple-system, sans-serif`;
+  ctx.fillText((fr.overall_fill_rate ?? 0) + "%", exec.x, 22 * P);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// ---- Equity candlesticks ---------------------------------------------
+function drawCandles(curve) {
+  const c = $("candles");
+  if (!c) return;
+  const ctx = c.getContext("2d");
+  const w = c.width = c.clientWidth * devicePixelRatio;
+  const h = c.height = 150 * devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+  if (!curve || curve.length < 4) return;
+  // Bucket the equity curve into candles (OHLC of equity within each bucket).
+  const N = Math.min(28, Math.floor(curve.length / 2));
+  const per = Math.max(1, Math.floor(curve.length / N));
+  const candles = [];
+  for (let i = 0; i < curve.length; i += per) {
+    const seg = curve.slice(i, i + per).map(p => p.equity);
+    if (!seg.length) continue;
+    candles.push({ o: seg[0], c: seg[seg.length - 1],
+                   hi: Math.max(...seg), lo: Math.min(...seg) });
+  }
+  const vals = candles.flatMap(k => [k.hi, k.lo]);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * 0.1 || 1;
+  const y = v => h - ((v - (lo - pad)) / ((hi + pad) - (lo - pad))) * h;
+  const cw = w / candles.length;
+  candles.forEach((k, i) => {
+    const x = i * cw + cw / 2;
+    const up = k.c >= k.o;
+    ctx.strokeStyle = up ? "#30d158" : "#ff453a";
+    ctx.fillStyle = up ? "#30d158" : "#ff453a";
+    ctx.lineWidth = 1 * devicePixelRatio;
+    ctx.beginPath(); ctx.moveTo(x, y(k.hi)); ctx.lineTo(x, y(k.lo)); ctx.stroke();
+    const bw = Math.max(cw * 0.6, 2);
+    const yo = y(k.o), yc = y(k.c);
+    ctx.fillRect(x - bw / 2, Math.min(yo, yc), bw, Math.max(Math.abs(yc - yo), 1));
+  });
+  $("cdl-val").textContent = fmt(candles[candles.length - 1].c);
+}
+
+// ---- Orderbook / fill heatmap ----------------------------------------
+function renderHeatmap(s) {
+  const el = $("heatmap");
+  if (!el) return;
+  const trades = s.recent_trades || [];
+  const COLS = 16, ROWS = 6, total = COLS * ROWS;
+  let cells = "";
+  for (let i = 0; i < total; i++) {
+    const t = trades[i];
+    let cls = "hm-empty", title = "";
+    if (t) {
+      const pl = t.realized_profit;
+      cls = pl > 0 ? "hm-g" : (pl < 0 ? "hm-r" : "hm-y");
+      const mag = Math.min(1, Math.abs(pl) / 50);
+      title = `${t.kind} ${pl >= 0 ? "+" : ""}$${pl.toFixed(2)}`;
+      cells += `<div class="hm ${cls}" style="opacity:${0.35 + 0.65 * mag}" title="${title}"></div>`;
+      continue;
+    }
+    cells += `<div class="hm ${cls}"></div>`;
+  }
+  el.innerHTML = cells;
+  $("hm-fill").textContent = (s.fill_report?.overall_fill_rate ?? 0) + "% fill";
+}
+
 
 function renderMM(mm, mode) {
   const card = $("mm-card");
@@ -102,6 +284,7 @@ function renderOpps(opps) {
   tb.innerHTML = opps.map(o => `
     <tr>
       <td><span class="tag ${o.kind}">${o.kind.replace("_", " ")}</span></td>
+      <td class="route">${routeOf(o)}</td>
       <td>${escapeHtml(o.description)}</td>
       <td>${fmt(o.cost)}</td>
       <td>${fmt(o.guaranteed_payoff)}</td>
@@ -113,6 +296,13 @@ function renderOpps(opps) {
       <td title="Frank-Wolfe iterations to converge">${o.fw_iters}</td>
       <td>${(o.confidence * 100).toFixed(0)}%</td>
     </tr>`).join("") || `<tr><td colspan="10" class="muted">scanning…</td></tr>`;
+}
+
+const VENUE_SHORT = { polymarket: "POLY", kalshi: "KALSHI" };
+function routeOf(o) {
+  const vs = [...new Set((o.legs || []).map(l => l.venue || "polymarket"))];
+  if (vs.length > 1) return vs.map(v => VENUE_SHORT[v] || v.toUpperCase()).join(" ↔ ");
+  return VENUE_SHORT[vs[0]] || (vs[0] || "POLY").toUpperCase();
 }
 
 function renderTrades(trades) {
@@ -133,11 +323,12 @@ function renderTrades(trades) {
   lastTradeKey = topKey;
 }
 
-function drawChart(curve, base) {
-  const c = $("chart");
+function drawChart(curve, base, id) {
+  const c = $(id || "chart");
+  if (!c) return;
   const ctx = c.getContext("2d");
   const w = c.width = c.clientWidth * devicePixelRatio;
-  const h = c.height = 160 * devicePixelRatio;
+  const h = c.height = (c.clientHeight || 150) * devicePixelRatio;
   ctx.clearRect(0, 0, w, h);
   if (!curve || curve.length < 2) return;
 

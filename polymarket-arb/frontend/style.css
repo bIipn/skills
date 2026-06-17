@@ -79,16 +79,66 @@ body {
 
 /* ---- Layout ----------------------------------------------------------- */
 .grid {
-  display: grid; grid-template-columns: 2fr 1fr; gap: 16px;
-  padding: clamp(14px, 3vw, 22px); max-width: 1400px; margin: 0 auto;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  padding: clamp(12px, 2.5vw, 20px); max-width: 1500px; margin: 0 auto;
 }
 .card {
   background: var(--bg-elev); border: 0.5px solid var(--separator);
-  border-radius: var(--radius); padding: clamp(14px, 2vw, 20px);
+  border-radius: var(--radius); padding: clamp(12px, 1.6vw, 18px);
   box-shadow: var(--shadow);
   transition: transform var(--dur) ease, box-shadow var(--dur) ease;
+  min-width: 0;
 }
 .wide { grid-column: 1 / -1; }
+.col2 { grid-column: span 2; }
+
+/* Header sub-stats ticker */
+.substats { display: flex; gap: 16px; flex: 1; justify-content: center;
+  flex-wrap: wrap; overflow: hidden; }
+.ss { font-size: 11px; white-space: nowrap; }
+.ss-l { color: var(--label-3); letter-spacing: 0.04em; }
+.ss-v { color: var(--green); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Signal-stats compact grid */
+.stats-card .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px; }
+.stat { background: var(--bg-elev2); border: 0.5px solid var(--separator);
+  border-radius: var(--radius-sm); padding: 10px; text-align: center; }
+.stat-v { font-size: clamp(15px, 1.1rem + 0.3vw, 20px); font-weight: 700;
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.stat-l { font-size: 9px; color: var(--label-3); letter-spacing: 0.05em;
+  text-transform: uppercase; margin-top: 3px; }
+
+/* Execution cycle */
+.cycle { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.seg { background: var(--bg-elev2); border: 0.5px solid var(--separator);
+  border-radius: var(--radius-sm); padding: 12px 8px; text-align: center;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--label-3);
+  position: relative; overflow: hidden; transition: all var(--dur) ease; }
+.seg .seg-i { display: inline-flex; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--separator); color: var(--label); align-items: center;
+  justify-content: center; font-size: 9px; margin-right: 5px; }
+.seg.done { color: var(--green); border-color: var(--green-dim); }
+.seg.done .seg-i { background: var(--green-dim); color: #fff; }
+.seg.on { color: #fff; background: var(--green); border-color: transparent;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--green) 50%, transparent); }
+.seg.on .seg-i { background: rgba(255,255,255,0.3); color: #fff; }
+
+/* Heatmap */
+.heatmap { display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px; }
+.hm { aspect-ratio: 1; border-radius: 2px; background: var(--bg-elev2); }
+.hm-g { background: var(--green); }
+.hm-r { background: var(--red); }
+.hm-y { background: var(--yellow); }
+.hm-empty { background: var(--bg-elev2); }
+
+td.route { font-weight: 600; color: var(--accent); font-size: 11px; white-space: nowrap; }
+
+@media (max-width: 1100px) { .grid { grid-template-columns: 1fr 1fr; }
+  .col2 { grid-column: span 2; } .cycle { grid-template-columns: repeat(3, 1fr); }
+  .heatmap { grid-template-columns: repeat(12, 1fr); } }
+@media (max-width: 720px) { .grid { grid-template-columns: 1fr; }
+  .col2, .wide { grid-column: 1 / -1; } }
 
 .label { color: var(--label-3); font-size: 12px; font-weight: 600;
   letter-spacing: 0.02em; text-transform: uppercase; }
@@ -170,8 +220,8 @@ td { padding: 9px 10px; border-top: 0.5px solid var(--separator); font-size: 12.
 .foot { color: var(--label-3); font-size: 11px; text-align: center;
   padding: 20px; border-top: 0.5px solid var(--separator); line-height: 1.7; }
 
-@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
-@media (max-width: 700px) { .strat-grid { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .strat-grid { grid-template-columns: 1fr; }
+  .stats-card .stat-grid { grid-template-columns: repeat(3, 1fr); } }
 
 /* Respect reduced-motion preference (HIG accessibility) */
 @media (prefers-reduced-motion: reduce) {
