@@ -51,5 +51,15 @@
         "./skills/claude-api"
       ]
     }
+    ,
+    {
+      "name": "loop-engineering",
+      "description": "Structure non-trivial or recurring work as a self-improving loop: automation, independent maker/checker verification, persistent memory, objective stop conditions, and fail-safe guardrails",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/loop-engineering"
+      ]
+    }
   ]
 }
